@@ -37,9 +37,13 @@ app = FastAPI(
 )
 
 # CORS — дашборд на другом порту
+import os
+
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # MVP: всё разрешено. SaaS: ограничить.
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

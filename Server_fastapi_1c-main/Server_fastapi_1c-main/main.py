@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from config import PRICE_COLUMNS, SECRET_KEY
+from config import PRICE_COLUMNS, SECRET_KEY, settings
 from database import init_db, get_user, username_exists, create_user
 from services.onec_client import (
     fetch_nomenclature,
@@ -52,6 +52,15 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 init_db()
 
