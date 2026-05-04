@@ -69,6 +69,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 @app.middleware("http")
 async def log_requests(request, call_next):
     start = time.time()
@@ -76,6 +77,14 @@ async def log_requests(request, call_next):
     duration = round(time.time() - start, 3)
     logger.info(f"{request.method} {request.url.path} → {response.status_code} ({duration}s)")
     return response
+    
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
+    return JSONResponse(
+        {"status": "error", "message": "Внутренняя ошибка сервера"},
+        status_code=500,
+    )
     
 BASE_DIR    = Path(__file__).parent
 PROMPTS_DIR = BASE_DIR / "prompts"

@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
+from services.cache import get_cached, set_cached
+
 
 from config import PRICE_COLUMNS, SECRET_KEY, settings
 from database import init_db, get_user, username_exists, create_user
@@ -100,7 +102,31 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
 
+    # Если API-запрос — вернуть JSON
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            {"error": "Внутренняя ошибка сервера. Попробуйте позже."},
+            status_code=500,
+        )
+
+    # Если страница — вернуть HTML
+    return HTMLResponse(
+        content="""
+        <html>
+        <head><title>Ошибка</title></head>
+        <body style="font-family:Arial; padding:40px; background:#1a1a2e; color:#eee;">
+            <h1>⚠️ Произошла ошибка</h1>
+            <p>Сервер столкнулся с непредвиденной ситуацией.</p>
+            <p>Попробуйте обновить страницу или вернуться на <a href="/" style="color:#4fc3f7;">главную</a>.</p>
+        </body>
+        </html>
+        """,
+        status_code=500,
+    )
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -348,28 +374,37 @@ def get_index(request: Request):
 
 @app.get("/price-list", response_class=HTMLResponse)
 async def get_price_list(request: Request):
-    _, redirect = require_session(request)
+    session, redirect = require_session(request)
     if redirect:
         return redirect
 
-    try:
-        nomenclature = await fetch_nomenclature()
-        prices = await fetch_prices(price_type_keys=list(PRICE_COLUMNS.keys()))
-        stocks = await fetch_stocks()
-        reserves = await fetch_reserves()
-        groups = await fetch_groups()
-    except Exception as e:
-        logger.error(f"Ошибка: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
+    cache_key = session["onec_base_url"]
 
-    try:
-        price_list       = build_price_list(nomenclature, prices, stocks, reserves, groups)
-        groups_hierarchy = build_groups_hierarchy(groups)
-        groups_list      = get_unique_groups(price_list)
-        price_columns    = list(PRICE_COLUMNS.values())
-    except Exception as e:
-        logger.error(f"Ошибка: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
+    # Пробуем из кэша
+    cached = get_cached("price", cache_key, "price_list")
+    if cached:
+        price_list, groups_hierarchy, groups_list, price_columns = cached
+    else:
+        try:
+            nomenclature = await fetch_nomenclature()
+            prices = await fetch_prices(price_type_keys=list(PRICE_COLUMNS.keys()))
+            stocks = await fetch_stocks()
+            reserves = await fetch_reserves()
+            groups = await fetch_groups()
+        except Exception as e:
+            logger.error(f"Ошибка подключения к 1С: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
+
+        try:
+            price_list       = build_price_list(nomenclature, prices, stocks, reserves, groups)
+            groups_hierarchy = build_groups_hierarchy(groups)
+            groups_list      = get_unique_groups(price_list)
+            price_columns    = list(PRICE_COLUMNS.values())
+        except Exception as e:
+            logger.error(f"Ошибка обработки данных: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
+
+        set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list")
 
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = html.replace("/*@@PRICE_DATA@@*/[]",       json.dumps(price_list,       ensure_ascii=False))
@@ -386,7 +421,7 @@ async def get_managers_dashboard(
     start_date: str = Query(default=None),
     end_date:   str = Query(default=None),
 ):
-    _, redirect = require_session(request)
+    session, redirect = require_session(request)
     if redirect:
         return redirect
 
@@ -396,26 +431,32 @@ async def get_managers_dashboard(
     if not end_date:
         end_date = today.isoformat()
 
-    try:
-        employees = await fetch_employees()
-        orders    = await fetch_orders(start_date=start_date, end_date=end_date)
-        revenues  = await fetch_revenues(start_date=start_date, end_date=end_date)
-        payments  = await fetch_payments(start_date=start_date, end_date=end_date)
-        debts     = await fetch_debts()
-        events    = await fetch_events(start_date=start_date, end_date=end_date)
-    except Exception as e:
-        logger.error(f"Ошибка: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
+    cache_key = session["onec_base_url"]
+    cached = get_cached("dashboard", cache_key, start_date, end_date)
+    if cached:
+        managers_data, totals = cached
+    else:
+        try:
+            employees = await fetch_employees()
+            orders    = await fetch_orders(start_date=start_date, end_date=end_date)
+            revenues  = await fetch_revenues(start_date=start_date, end_date=end_date)
+            payments  = await fetch_payments(start_date=start_date, end_date=end_date)
+            debts     = await fetch_debts()
+            events    = await fetch_events(start_date=start_date, end_date=end_date)
+        except Exception as e:
+            logger.error(f"Ошибка подключения к 1С: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
-    try:
-        contragents = await fetch_contragents()
-        managers_data, totals = build_managers_dashboard(
-            employees, orders, revenues, payments, debts, events, contragents
-        )
-    except Exception as e:
-        logger.error(f"Ошибка: {e}", exc_info=True)
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
+        try:
+            contragents = await fetch_contragents()
+            managers_data, totals = build_managers_dashboard(
+                employees, orders, revenues, payments, debts, events, contragents
+            )
+        except Exception as e:
+            logger.error(f"Ошибка обработки данных: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
+
+        set_cached("dashboard", (managers_data, totals), cache_key, start_date, end_date)
 
     def fmt(d: str) -> str:
         y, m, day = d.split("-")
