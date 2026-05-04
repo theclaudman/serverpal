@@ -1,0 +1,27 @@
+# Окружение
+.env
+.env.test
+tests/.env.test
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Данные и логи (не коммитим)
+data/
+logs/
+bases_registry.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+.env
+users.db
+__pycache__/

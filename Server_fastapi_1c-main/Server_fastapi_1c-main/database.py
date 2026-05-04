@@ -1,9 +1,17 @@
-# database.py
-
 import sqlite3
+import bcrypt
 from pathlib import Path
+from cryptography.fernet import Fernet
+from config import settings
 
 DB_PATH = Path("users.db")
+
+
+def _fernet() -> Fernet:
+    """Инициализирует Fernet из ключа в конфиге."""
+    if not settings.encryption_key:
+        raise RuntimeError("ENCRYPTION_KEY не задан в .env")
+    return Fernet(settings.encryption_key.encode())
 
 
 def get_connection() -> sqlite3.Connection:
@@ -16,39 +24,56 @@ def init_db() -> None:
     with get_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                username      TEXT    UNIQUE NOT NULL,
-                password      TEXT    NOT NULL,
-                onec_base_url TEXT    NOT NULL DEFAULT ''
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                username        TEXT    UNIQUE NOT NULL,
+                password_hash   TEXT    NOT NULL,
+                onec_password   TEXT    NOT NULL DEFAULT '',
+                onec_base_url   TEXT    NOT NULL DEFAULT ''
             )
         """)
+
         columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
 
-        # Миграция: добавляем новое объединённое поле
-        if "onec_base_url" not in columns:
-            conn.execute(
-                "ALTER TABLE users ADD COLUMN onec_base_url TEXT NOT NULL DEFAULT ''"
-            )
-            columns.append("onec_base_url")
+        # Миграция: старая схема с полем password → новая с password_hash + onec_password
+        if "password" in columns and "password_hash" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
+            conn.execute("ALTER TABLE users ADD COLUMN onec_password TEXT NOT NULL DEFAULT ''")
 
-        # Миграция: заполняем onec_base_url из старых полей и удаляем их
-        if "server_ip" in columns and "onec_publication" in columns:
-            conn.execute("""
-                UPDATE users
-                SET onec_base_url = 'http://' || server_ip || '/' || onec_publication
-                WHERE onec_base_url = ''
-            """)
-            conn.execute("ALTER TABLE users DROP COLUMN server_ip")
-            conn.execute("ALTER TABLE users DROP COLUMN onec_publication")
+            # Мигрируем существующих пользователей
+            rows = conn.execute("SELECT id, password FROM users").fetchall()
+            f = _fernet()
+            for row in rows:
+                pw = row["password"]
+                hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+                encrypted = f.encrypt(pw.encode()).decode()
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, onec_password = ? WHERE id = ?",
+                    (hashed, encrypted, row["id"]),
+                )
+
+            # Удаляем старую колонку
+            conn.execute("ALTER TABLE users DROP COLUMN password")
 
 
 def get_user(username: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT username, password, onec_base_url FROM users WHERE username = ?",
+            "SELECT username, password_hash, onec_password, onec_base_url FROM users WHERE username = ?",
             (username,),
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    return dict(row)
+
+
+def verify_password(plain_password: str, password_hash: str) -> bool:
+    """Проверяет пароль против bcrypt-хэша."""
+    return bcrypt.checkpw(plain_password.encode(), password_hash.encode())
+
+
+def decrypt_onec_password(encrypted_password: str) -> str:
+    """Расшифровывает пароль 1С для отправки в Basic Auth."""
+    return _fernet().decrypt(encrypted_password.encode()).decode()
 
 
 def username_exists(username: str) -> bool:
@@ -61,8 +86,11 @@ def username_exists(username: str) -> bool:
 
 
 def create_user(username: str, password: str, onec_base_url: str) -> None:
+    """Сохраняет пользователя: пароль хэшируется + шифруется."""
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    encrypted = _fernet().encrypt(password.encode()).decode()
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO users (username, password, onec_base_url) VALUES (?, ?, ?)",
-            (username, password, onec_base_url),
+            "INSERT INTO users (username, password_hash, onec_password, onec_base_url) VALUES (?, ?, ?, ?)",
+            (username, hashed, encrypted, onec_base_url),
         )

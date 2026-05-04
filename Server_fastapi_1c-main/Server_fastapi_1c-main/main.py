@@ -1,5 +1,6 @@
 # main.py
 
+from database import init_db, get_user, username_exists, create_user, verify_password, decrypt_onec_password
 import base64
 import hashlib
 import hmac
@@ -87,7 +88,8 @@ def require_session(request: Request):
     session = get_session(request)
     if not session:
         return None, RedirectResponse(url="/login", status_code=302)
-    set_credentials(session["onec_base_url"], session["user"], session["password"])
+    onec_password = decrypt_onec_password(session["password"])
+    set_credentials(session["onec_base_url"], session["user"], onec_password)
     return session, None
 
 
@@ -147,7 +149,7 @@ async def login_submit(
             status_code=401,
         )
 
-    if user["password"] != password:
+    if not verify_password(password, user["password_hash"]):
         return HTMLResponse(
             content=_render_login(error="Неверный пароль", username=username),
             status_code=401,
@@ -167,7 +169,9 @@ async def login_submit(
             status_code=502,
         )
 
-    session_data = {"onec_base_url": onec_base_url, "user": username, "password": password}
+    from database import _fernet
+    encrypted_pw = _fernet().encrypt(password.encode()).decode()
+    session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
     response.set_cookie(
         key="session",
@@ -237,7 +241,8 @@ async def register_submit(
     create_user(username, password, onec_base_url)
 
     # Автоматически входим после регистрации
-    session_data = {"onec_base_url": onec_base_url, "user": username, "password": password}
+    encrypted_pw = _fernet().encrypt(password.encode()).decode()
+    session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
     response.set_cookie(
         key="session",
