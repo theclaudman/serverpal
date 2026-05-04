@@ -1,4 +1,4 @@
-# 1C AI Bridge
+# 1C AI Bridge #
 
 Сервис-посредник между базами 1С УНФ 3.0 и GigaChat AI.
 
