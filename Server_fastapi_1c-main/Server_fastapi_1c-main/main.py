@@ -2,6 +2,7 @@
 
 from database import init_db, get_user, username_exists, create_user, verify_password, decrypt_onec_password
 import base64
+import time
 import hashlib
 #import hmac
 import json
@@ -46,13 +47,39 @@ from services.dashboard_builder import build_managers_dashboard
 from services.sales_builder import build_sales_report
 from services.ai_client import chat as ai_chat
 from services.digest_client import get_providers, generate_digest, ask_question
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from fastapi.middleware.cors import CORSMiddleware
+from cryptography.fernet import Fernet, InvalidToken
+import hashlib
+import uvicorn
+from database import _fernet
+
+# Создаём папку для логов
+Path("logs").mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            "logs/dashboard.log",
+            maxBytes=10 * 1024 * 1024,  # 10 МБ
+            backupCount=5,
+            encoding="utf-8",
+        ),
+    ],
+)
+
+logger = logging.getLogger("dashboard")
 
 app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,6 +89,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = round(time.time() - start, 3)
+
+    # Не логируем статику и health
+    if not request.url.path.startswith("/static"):
+        logger.info(
+            f"{request.method} {request.url.path} → {response.status_code} ({duration}s) "
+            f"IP={request.client.host}"
+        )
+
+    return response
 init_db()
 
 CHAT_TEMPLATE_PATH      = Path("templates/chat.html")
@@ -76,11 +118,10 @@ SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
 
 # ── Сессионные cookie ────────────────────────────────────────────────────────
 
-from cryptography.fernet import Fernet, InvalidToken
 
 def _session_fernet() -> Fernet:
     """Fernet для шифрования cookie-сессий. Ключ из SECRET_KEY (32 байта → base64)."""
-    import hashlib
+
     key = hashlib.sha256(SECRET_KEY.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 
@@ -191,7 +232,6 @@ async def login_submit(
             status_code=502,
         )
 
-    from database import _fernet
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
     session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
@@ -307,6 +347,7 @@ def get_price_list(request: Request):
         reserves = fetch_reserves()
         groups = fetch_groups()
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
     try:
@@ -315,6 +356,7 @@ def get_price_list(request: Request):
         groups_list      = get_unique_groups(price_list)
         price_columns    = list(PRICE_COLUMNS.values())
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -350,6 +392,7 @@ def get_managers_dashboard(
         debts     = fetch_debts()
         events    = fetch_events(start_date=start_date, end_date=end_date)
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
     try:
@@ -358,6 +401,7 @@ def get_managers_dashboard(
             employees, orders, revenues, payments, debts, events, contragents
         )
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
@@ -401,6 +445,7 @@ def get_sales_report(
         employees   = fetch_employees()
         order_nums  = fetch_order_numbers()
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
     try:
@@ -419,6 +464,7 @@ def get_sales_report(
             invoices, nom_index, cont_index, emp_index, costs, order_index
         )
     except Exception as e:
+        logger.error(f"Ошибка: {e}", exc_info=True)
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
@@ -535,5 +581,5 @@ async def api_digest_ask(request: Request, body: AskBody):
 
 
 if __name__ == "__main__":
-    import uvicorn
+    
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

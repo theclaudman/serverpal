@@ -24,6 +24,27 @@ from api_models import (
     ProviderInfo, ProvidersResponse, HealthResponse,
 )
 import context_builder
+import logging
+import time
+from logging.handlers import RotatingFileHandler
+
+Path("logs").mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            "logs/digest.log",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        ),
+    ],
+)
+
+logger = logging.getLogger("digest_api")
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +69,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+@app.middleware("http")
+async def log_requests(request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = round(time.time() - start, 3)
+    logger.info(f"{request.method} {request.url.path} → {response.status_code} ({duration}s)")
+    return response
+    
 BASE_DIR    = Path(__file__).parent
 PROMPTS_DIR = BASE_DIR / "prompts"
 
