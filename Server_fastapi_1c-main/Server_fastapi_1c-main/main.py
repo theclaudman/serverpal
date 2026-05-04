@@ -4,7 +4,9 @@ from database import init_db, get_user, username_exists, create_user, verify_pas
 import base64
 import time
 import hashlib
+from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, settings
 #import hmac
+import httpx
 import json
 import traceback
 from datetime import date, datetime, timedelta
@@ -55,6 +57,16 @@ from cryptography.fernet import Fernet, InvalidToken
 import hashlib
 import uvicorn
 from database import _fernet
+
+async def check_service(url: str, timeout: float = 3) -> bool:
+    """Проверяет доступность внешнего сервиса."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url)
+            return response.status_code == 200
+    except Exception:
+        return False
+
 
 # Создаём папку для логов
 Path("logs").mkdir(exist_ok=True)
@@ -500,22 +512,36 @@ def get_chat(request: Request):
     return HTMLResponse(content=CHAT_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
+# @app.post("/api/chat")
+# @limiter.limit("20/minute")
+
+# async def post_chat(request: Request, body: ChatMessage):
+#     session, _ = require_session(request)
+#     if not session:
+#         return JSONResponse({"error": "Не авторизован"}, status_code=401)
+
+#     _parsed = urlparse(session["onec_base_url"])
+#     onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
+#     try:
+#         answer = ai_chat(body.prompt, session["user"], session["password"], onec_ip)
+#     except Exception as e:
+#         return JSONResponse({"error": str(e)}, status_code=502)
+
+#     return JSONResponse({"answer": answer})
+
 @app.post("/api/chat")
 @limiter.limit("20/minute")
-
 async def post_chat(request: Request, body: ChatMessage):
     session, _ = require_session(request)
     if not session:
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
 
-    _parsed = urlparse(session["onec_base_url"])
-    onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
-    try:
-        answer = ai_chat(body.prompt, session["user"], session["password"], onec_ip)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=502)
+    if not await check_service(f"{AI_SERVICE_URL}/health"):
+        return JSONResponse(
+            {"error": "AI-сервис недоступен. Попробуйте позже."},
+            status_code=503,
+        )
 
-    return JSONResponse({"answer": answer})
 
 
 # ── Финансовый дайджест ──────────────────────────────────────────────────────
@@ -538,13 +564,27 @@ def digest_page(request: Request):
     return HTMLResponse(content=DIGEST_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
-@app.get("/api/digest/providers")
-async def api_digest_providers(request: Request):
-    session, redirect = require_session(request)
+# @app.get("/api/digest/providers")
+# async def api_digest_providers(request: Request):
+#     session, redirect = require_session(request)
+#     if not session:
+#         return JSONResponse({"error": "Не авторизован"}, status_code=401)
+#     result = get_providers()
+#     return JSONResponse(result)
+
+@app.post("/api/digest")
+@limiter.limit("5/hour")
+async def api_digest(request: Request, body: DigestBody):
+    session, _ = require_session(request)
     if not session:
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
-    result = get_providers()
-    return JSONResponse(result)
+
+    if not await check_service(f"{DIGEST_SERVICE_URL}/health"):
+        return JSONResponse(
+            {"error": "Сервис дайджеста недоступен. Попробуйте позже."},
+            status_code=503,
+        )
+
 
 
 @app.post("/api/digest")
@@ -578,6 +618,22 @@ async def api_digest_ask(request: Request, body: AskBody):
         provider=body.provider,
     )
     return JSONResponse(result)
+
+
+@app.get("/health")
+async def health():
+    ai_ok = await check_service(f"{AI_SERVICE_URL}/health")
+    digest_ok = await check_service(f"{DIGEST_SERVICE_URL}/health")
+
+    return {
+        "status": "ok",
+        "services": {
+            "dashboard": True,
+            "ai_bridge": ai_ok,
+            "digest_api": digest_ok,
+        }
+    }
+
 
 
 if __name__ == "__main__":
