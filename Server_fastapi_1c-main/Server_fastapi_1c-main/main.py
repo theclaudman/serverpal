@@ -48,6 +48,10 @@ from services.ai_client import chat as ai_chat
 from services.digest_client import get_providers, generate_digest, ask_question
 
 app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 init_db()
 
@@ -136,6 +140,7 @@ def login_page(request: Request):
 
 
 @app.post("/login")
+@limiter.limit("5/minute")
 async def login_submit(
     request:  Request,
     username: str = Form(...),
@@ -201,6 +206,7 @@ def register_page(request: Request):
 
 
 @app.post("/register")
+@limiter.limit("5/minute")
 async def register_submit(
     request:       Request,
     onec_base_url: str = Form(...),
@@ -440,6 +446,8 @@ def get_chat(request: Request):
 
 
 @app.post("/api/chat")
+@limiter.limit("20/minute")
+
 async def post_chat(request: Request, body: ChatMessage):
     session, _ = require_session(request)
     if not session:
@@ -485,6 +493,7 @@ async def api_digest_providers(request: Request):
 
 
 @app.post("/api/digest")
+@limiter.limit("11/hour")
 async def api_digest(request: Request, body: DigestBody):
     session, _ = require_session(request)
     if not session:
