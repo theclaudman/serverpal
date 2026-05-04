@@ -222,7 +222,7 @@ async def login_submit(
     onec_base_url = user["onec_base_url"]
     set_credentials(onec_base_url, username, password)
     try:
-        fetch_employees()
+        await fetch_employees()
     except Exception as e:
         return HTMLResponse(
             content=_render_login(
@@ -290,7 +290,7 @@ async def register_submit(
     # Проверяем подключение к 1С перед сохранением
     set_credentials(onec_base_url, username, password)
     try:
-        fetch_employees()
+        await fetch_employees()
     except Exception as e:
         return HTMLResponse(
             content=_render_register(
@@ -335,17 +335,17 @@ def get_index(request: Request):
 
 
 @app.get("/price-list", response_class=HTMLResponse)
-def get_price_list(request: Request):
+async def get_price_list(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
 
     try:
-        nomenclature = fetch_nomenclature()
-        prices = fetch_prices(price_type_keys=list(PRICE_COLUMNS.keys()))
-        stocks = fetch_stocks()
-        reserves = fetch_reserves()
-        groups = fetch_groups()
+        nomenclature = await fetch_nomenclature()
+        prices = await fetch_prices(price_type_keys=list(PRICE_COLUMNS.keys()))
+        stocks = await fetch_stocks()
+        reserves = await fetch_reserves()
+        groups = await fetch_groups()
     except Exception as e:
         logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
@@ -369,7 +369,7 @@ def get_price_list(request: Request):
 
 
 @app.get("/dashboard/managers", response_class=HTMLResponse)
-def get_managers_dashboard(
+async def get_managers_dashboard(
     request:    Request,
     start_date: str = Query(default=None),
     end_date:   str = Query(default=None),
@@ -385,18 +385,18 @@ def get_managers_dashboard(
         end_date = today.isoformat()
 
     try:
-        employees = fetch_employees()
-        orders    = fetch_orders(start_date=start_date, end_date=end_date)
-        revenues  = fetch_revenues(start_date=start_date, end_date=end_date)
-        payments  = fetch_payments(start_date=start_date, end_date=end_date)
-        debts     = fetch_debts()
-        events    = fetch_events(start_date=start_date, end_date=end_date)
+        employees = await fetch_employees()
+        orders    = await fetch_orders(start_date=start_date, end_date=end_date)
+        revenues  = await fetch_revenues(start_date=start_date, end_date=end_date)
+        payments  = await fetch_payments(start_date=start_date, end_date=end_date)
+        debts     = await fetch_debts()
+        events    = await fetch_events(start_date=start_date, end_date=end_date)
     except Exception as e:
         logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
     try:
-        contragents = fetch_contragents()
+        contragents = await fetch_contragents()
         managers_data, totals = build_managers_dashboard(
             employees, orders, revenues, payments, debts, events, contragents
         )
@@ -423,7 +423,7 @@ def get_managers_dashboard(
 
 
 @app.get("/report/sales", response_class=HTMLResponse)
-def get_sales_report(
+async def get_sales_report(
     request:    Request,
     start_date: str = Query(default=None),
     end_date:   str = Query(default=None),
@@ -439,11 +439,11 @@ def get_sales_report(
         end_date = today.isoformat()
 
     try:
-        invoices    = fetch_sales(start_date=start_date, end_date=end_date)
-        nom_raw     = fetch_nomenclature()
-        contragents = fetch_contragents()
-        employees   = fetch_employees()
-        order_nums  = fetch_order_numbers()
+        invoices    = await fetch_sales(start_date=start_date, end_date=end_date)
+        nom_raw     = await fetch_nomenclature()
+        contragents = await fetch_contragents()
+        employees   = await fetch_employees()
+        order_nums  = await fetch_order_numbers()
     except Exception as e:
         logger.error(f"Ошибка: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
@@ -458,7 +458,7 @@ def get_sales_report(
         emp_index   = {e["Ref_Key"]: e.get("Description", "") for e in employees}
         order_index = {o["Ref_Key"]: o.get("Number", "") for o in order_nums}
 
-        costs = fetch_cost_by_orders(start_date=start_date, end_date=end_date)
+        costs = await fetch_cost_by_orders(start_date=start_date, end_date=end_date)
 
         sales_data, daily_sales_data = build_sales_report(
             invoices, nom_index, cont_index, emp_index, costs, order_index

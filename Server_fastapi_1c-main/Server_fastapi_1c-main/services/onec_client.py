@@ -1,7 +1,5 @@
-import urllib.request
-import urllib.parse
+import httpx
 import base64
-import json
 from contextvars import ContextVar
 
 # Контекстные переменные — устанавливаются из сессии для каждого запроса
@@ -11,7 +9,6 @@ _ctx_password: ContextVar[str] = ContextVar("onec_password", default="")
 
 
 def set_credentials(onec_base_url: str, user: str, password: str) -> None:
-    """Устанавливает учётные данные для текущего запроса."""
     _ctx_base_url.set(f"{onec_base_url}/odata/standard.odata")
     _ctx_user.set(user)
     _ctx_password.set(password)
@@ -27,38 +24,29 @@ def _password() -> str:
     return _ctx_password.get()
 
 
-def safe_get(url: str) -> dict:
-    """Выполняет GET запрос с кириллицей в URL через urllib"""
-    credentials = base64.b64encode(
-        f"{_user()}:{_password()}".encode("utf-8")
-    ).decode("utf-8")
-
-    # Кодируем только нелатинские символы, оставляя спецсимволы URL нетронутыми
-    encoded_url = urllib.parse.quote(url, safe=":/?=&'().,@!$-_~#+%")
-
-    req = urllib.request.Request(encoded_url)
-    req.add_header("Authorization", f"Basic {credentials}")
-    req.add_header("Accept", "application/json")
-
-    with urllib.request.urlopen(req, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+async def safe_get(url: str) -> dict:
+    """Выполняет асинхронный GET запрос к 1С OData."""
+    auth = httpx.BasicAuth(_user(), _password())
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(url, auth=auth)
+        response.raise_for_status()
+        return response.json()
 
 
 def get_client():
-    """Оставляем для совместимости — возвращает None"""
     return None
 
 
-def fetch_nomenclature(client=None) -> list:
+async def fetch_nomenclature(client=None) -> list:
     url = (
         f"{_base_url()}/Catalog_Номенклатура"
         f"?$format=json"
         f"&$select=Ref_Key,Description,Артикул,Parent_Key,IsFolder,ИсключитьИзПрайсЛистов,Недействителен"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_prices(client=None, price_type_keys: list = []) -> list:
+async def fetch_prices(client=None, price_type_keys: list = []) -> list:
     guids = " or ".join(
         [f"ВидЦен_Key eq guid'{key}'" for key in price_type_keys]
     )
@@ -68,49 +56,49 @@ def fetch_prices(client=None, price_type_keys: list = []) -> list:
         f"&$filter={guids}"
         f"&$select=Номенклатура_Key,ВидЦен_Key,Цена"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_stocks(client=None) -> list:
+async def fetch_stocks(client=None) -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_ЗапасыНаСкладах/Balance"
         f"?$format=json"
         f"&$select=Номенклатура_Key,КоличествоBalance"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_reserves(client=None) -> list:
+async def fetch_reserves(client=None) -> list:
     try:
         url = (
             f"{_base_url()}/AccumulationRegister_РезервыТоваровОрганизаций/Balance"
             f"?$format=json"
             f"&$select=Номенклатура_Key,КоличествоBalance"
         )
-        return safe_get(url).get("value", [])
+        return (await safe_get(url)).get("value", [])
     except Exception:
         return []
 
 
-def fetch_groups(client=None) -> list:
+async def fetch_groups(client=None) -> list:
     url = (
         f"{_base_url()}/Catalog_Номенклатура"
         f"?$format=json"
         f"&$select=Ref_Key,Description,Parent_Key,IsFolder,Недействителен"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_employees(client=None) -> list:
+async def fetch_employees(client=None) -> list:
     url = (
         f"{_base_url()}/Catalog_Сотрудники"
         f"?$format=json"
         f"&$select=Ref_Key,Description,ВАрхиве,Недействителен"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_orders(client=None, start_date: str = "", end_date: str = "") -> list:
+async def fetch_orders(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/Document_ЗаказПокупателя"
         f"?$format=json"
@@ -119,39 +107,39 @@ def fetch_orders(client=None, start_date: str = "", end_date: str = "") -> list:
         f" and Date le datetime'{end_date}T23:59:59'"
         f" and Posted eq true"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_revenues(client=None, start_date: str = "", end_date: str = "") -> list:
+async def fetch_revenues(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_ДоходыИРасходы/Turnovers"
         f"(StartPeriod=datetime'{start_date}T00:00:00',EndPeriod=datetime'{end_date}T23:59:59')"
         f"?$format=json"
         f"&$select=ЗаказПокупателя_Key,СуммаДоходовTurnover,СуммаРасходовTurnover"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_payments(client=None, start_date: str = "", end_date: str = "") -> list:
+async def fetch_payments(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_РасчетыСПокупателями/Turnovers"
         f"(StartPeriod=datetime'{start_date}T00:00:00',EndPeriod=datetime'{end_date}T23:59:59')"
         f"?$format=json"
         f"&$select=Заказ,ТипРасчетов,СуммаReceipt"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_debts(client=None) -> list:
+async def fetch_debts(client=None) -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_РасчетыСПокупателями/Balance"
         f"?$format=json"
         f"&$select=Заказ,Контрагент_Key,СуммаBalance,ТипРасчетов"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_events(client=None, start_date: str = "", end_date: str = "") -> list:
+async def fetch_events(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/Document_Событие"
         f"?$format=json"
@@ -159,21 +147,19 @@ def fetch_events(client=None, start_date: str = "", end_date: str = "") -> list:
         f"&$filter=Date ge datetime'{start_date}T00:00:00'"
         f" and Date le datetime'{end_date}T23:59:59'"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_contragents(client=None) -> list:
-    """Получает контрагентов для расшифровки долгов"""
+async def fetch_contragents(client=None) -> list:
     url = (
         f"{_base_url()}/Catalog_Контрагенты"
         f"?$format=json"
         f"&$select=Ref_Key,Description"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_sales(client=None, start_date: str = "", end_date: str = "") -> list:
-    """Получает расходные накладные с табличной частью за период"""
+async def fetch_sales(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/Document_РасходнаяНакладная"
         f"?$format=json"
@@ -182,25 +168,23 @@ def fetch_sales(client=None, start_date: str = "", end_date: str = "") -> list:
         f" and Date le datetime'{end_date}T23:59:59'"
         f" and Posted eq true"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_order_numbers(client=None) -> list:
-    """Получает номера всех заказов для расшифровки UUID в накладных"""
+async def fetch_order_numbers(client=None) -> list:
     url = (
         f"{_base_url()}/Document_ЗаказПокупателя"
         f"?$format=json"
         f"&$select=Ref_Key,Number"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
 
 
-def fetch_cost_by_orders(client=None, start_date: str = "", end_date: str = "") -> list:
-    """Получает себестоимость в разрезе заказов из ДоходыИРасходы"""
+async def fetch_cost_by_orders(client=None, start_date: str = "", end_date: str = "") -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_ДоходыИРасходы/Turnovers"
         f"(StartPeriod=datetime'{start_date}T00:00:00',EndPeriod=datetime'{end_date}T23:59:59')"
         f"?$format=json"
         f"&$select=ЗаказПокупателя_Key,СуммаРасходовTurnover"
     )
-    return safe_get(url).get("value", [])
+    return (await safe_get(url)).get("value", [])
