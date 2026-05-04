@@ -9,7 +9,7 @@
 дашборд
 
 активейт
-pip install fastapi uvicorn python-multipart
+инстал реквайрменгтс
 запуск маин 
 
 
