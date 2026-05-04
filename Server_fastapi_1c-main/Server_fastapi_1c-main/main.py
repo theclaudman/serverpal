@@ -3,10 +3,13 @@
 from database import init_db, get_user, username_exists, create_user, verify_password, decrypt_onec_password
 import base64
 import hashlib
-import hmac
+#import hmac
 import json
 import traceback
 from datetime import date, datetime, timedelta
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -60,22 +63,27 @@ SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
 
 # ── Сессионные cookie ────────────────────────────────────────────────────────
 
-def _sign(payload: str) -> str:
-    return hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+from cryptography.fernet import Fernet, InvalidToken
+
+def _session_fernet() -> Fernet:
+    """Fernet для шифрования cookie-сессий. Ключ из SECRET_KEY (32 байта → base64)."""
+    import hashlib
+    key = hashlib.sha256(SECRET_KEY.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key))
 
 
 def encode_session(data: dict) -> str:
-    payload = base64.urlsafe_b64encode(json.dumps(data).encode()).decode()
-    return f"{payload}.{_sign(payload)}"
+    """Шифрует данные сессии в Fernet-токен."""
+    payload = json.dumps(data).encode()
+    return _session_fernet().encrypt(payload).decode()
 
 
 def decode_session(cookie: str) -> dict | None:
+    """Расшифровывает cookie. Возвращает None если подделана или протухла."""
     try:
-        payload, sig = cookie.rsplit(".", 1)
-        if not hmac.compare_digest(_sign(payload), sig):
-            return None
-        return json.loads(base64.urlsafe_b64decode(payload).decode())
-    except Exception:
+        data = _session_fernet().decrypt(cookie.encode(), ttl=43200)  # 12 часов
+        return json.loads(data.decode())
+    except (InvalidToken, Exception):
         return None
 
 
