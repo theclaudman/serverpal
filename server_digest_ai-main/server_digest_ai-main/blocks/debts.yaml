@@ -1,0 +1,43 @@
+# Блок: Дебиторская задолженность
+# Кто должен нам — покупатели
+
+id: debts
+name: "Дебиторка"
+enabled: true
+priority: 3
+
+source:
+  entity: "AccumulationRegister_РасчетыСПокупателями/Balance"
+  type: balance
+  fields:
+    - Контрагент_Key
+    - Договор_Key
+    - СуммаBalance
+    - ТипРасчетов
+  filter: "СуммаBalance gt 0"
+  orderby: "СуммаBalance desc"
+  period: none
+
+resolve:
+  - field: "Контрагент_Key"
+    catalog: "Catalog_Контрагенты"
+
+mask:
+  - field: "Контрагент_Key"
+    prefix: "Контрагент"
+    type: guid_ref
+
+aggregation:
+  type: group_sum
+  group_by: "Контрагент_Key"
+  sum_field: "СуммаBalance"
+  max_rows: 20
+
+template: |
+  ДЕБИТОРКА: {total} ({count} контрагентов)
+    Крупнейшие должники:
+    {top_items}
+
+hide_if_empty: false
+
+depends_on: []

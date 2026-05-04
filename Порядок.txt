@@ -1,0 +1,26 @@
+дайжэест
+
+активейт
+инстал реквайрменгтс
+запуск сервер
+
+
+
+дашборд
+
+активейт
+pip install fastapi uvicorn python-multipart
+запуск маин 
+
+
+
+сервер аи
+
+venv\Scripts\activate
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+
+
+
+ллм - контекст выставить 16384

@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчет о продажах</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #e4e4e4;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f0f1a;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+
+
+
+<style>
+/* CSS Variables for theme support (fallback for standalone mode) */
+:root {
+    --bg-body: #0f0f1a;
+    --bg-secondary: rgba(255,255,255,0.05);
+    --bg-card: rgba(255,255,255,0.03);
+    --text-primary: #e4e4e4;
+    --text-secondary: #e4e4e4;
+    --text-muted: #888;
+    --border-color: rgba(255,255,255,0.05);
+    --border-light: rgba(255,255,255,0.08);
+    --accent-green: #4ade80;
+    --accent-green-bg: rgba(74, 222, 128, 0.1);
+    --accent-green-border: rgba(74, 222, 128, 0.2);
+    --accent-blue: #60a5fa;
+    --accent-blue-bg: rgba(96, 165, 250, 0.1);
+    --accent-blue-border: rgba(96, 165, 250, 0.2);
+    --accent-orange: #fb923c;
+    --accent-orange-bg: rgba(251, 146, 60, 0.1);
+    --accent-orange-border: rgba(251, 146, 60, 0.2);
+    --accent-red: #f87171;
+    --accent-purple: #a78bfa;
+}
+
+/* Prevent wrapping of the last cell */
+td:last-child {
+    white-space: nowrap;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sales-report-container {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+.report-header {
+    text-align: center;
+    margin-bottom: 40px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 30px;
+    border-radius: 16px;
+}
+
+.report-header h1 {
+    color: var(--accent-green);
+    margin-bottom: 10px;
+    font-size: 2.5em;
+    font-weight: 700;
+}
+
+.report-header p {
+    color: var(--text-muted);
+    font-size: 1.1em;
+    margin: 8px 0;
+    font-weight: 500;
+}
+
+.main-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 20px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+.metric-card {
+    background: var(--accent-green-bg);
+    border: 1px solid var(--accent-green-border);
+    border-radius: 16px;
+    padding: 25px;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:nth-child(2) {
+    background: var(--accent-blue-bg);
+    border-color: var(--accent-blue-border);
+}
+
+.metric-card:nth-child(3) {
+    background: var(--accent-orange-bg);
+    border-color: var(--accent-orange-border);
+}
+
+.metric-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-light);
+}
+
+.metric-card h3 {
+    margin: 0 0 15px;
+    color: var(--text-muted);
+    font-size: 0.95em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+}
+
+.metric-card .metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent-green);
+    margin: 0;
+}
+
+.metric-card:nth-child(2) .metric-value { color: var(--accent-blue); }
+.metric-card:nth-child(3) .metric-value { color: var(--accent-orange); }
+
+.controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+.controls button {
+    background: var(--accent-green);
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.controls button:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+.controls button.active {
+    background: var(--accent-blue);
+}
+
+.controls input {
+    padding: 12px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    font-size: 0.9em;
+    flex-grow: 1;
+    min-width: 200px;
+    transition: all 0.3s ease;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.controls input:focus {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+    outline: none;
+}
+
+.controls input::placeholder {
+    color: var(--text-muted);
+}
+
+.table-container {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    margin-top: 20px;
+    background: var(--bg-card);
+}
+
+table {
+    width: 100%;
+    min-width: 800px;
+    border-collapse: collapse;
+    background-color: transparent;
+    table-layout: fixed;
+}
+
+th, td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-primary);
+}
+
+/* Column widths */
+th:nth-child(1), td:nth-child(1) { width: 200px; }
+th:nth-child(2), td:nth-child(2) { width: 180px; }
+th:nth-child(3), td:nth-child(3) { width: 120px; }
+th:nth-child(4), td:nth-child(4) { width: 100px; }
+th:nth-child(5), td:nth-child(5) { width: 80px; text-align: right; }
+th:nth-child(6), td:nth-child(6) { width: 100px; text-align: right; }
+th:nth-child(7), td:nth-child(7) { width: 100px; text-align: right; }
+th:nth-child(8), td:nth-child(8) { width: 100px; text-align: right; }
+
+thead {
+    background: var(--bg-secondary);
+}
+
+th {
+    font-weight: 600;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    min-width: 60px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+tbody tr:nth-child(even) { background-color: var(--bg-secondary); }
+tbody tr:hover {
+    background-color: rgba(74, 222, 128, 0.05);
+}
+
+td {
+    font-size: 0.9em;
+    border-left: 3px solid transparent;
+}
+
+tbody tr:hover td:first-child { border-left-color: var(--accent-green); }
+
+.positive { color: var(--accent-green); font-weight: 600; }
+.negative { color: var(--accent-red); font-weight: 600; }
+
+/* Total row */
+.total-row {
+    background: var(--accent-green-bg) !important;
+    border-top: 1px solid var(--accent-green-border);
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+.total-row:hover {
+    background: var(--accent-green-bg) !important;
+}
+
+.total-row td {
+    border-bottom: none;
+    padding: 15px 8px;
+    font-size: 1.05em;
+    color: var(--accent-green) !important;
+    font-weight: bold;
+}
+
+.total-row .positive { color: var(--accent-green) !important; }
+.total-row .negative { color: var(--accent-red) !important; }
+
+/* Chart */
+.chart-container {
+    position: relative;
+    height: 400px;
+    margin: 40px 0;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+/* Sortable headers */
+th.sortable {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    padding-right: 26px;
+}
+
+th.sortable::after {
+    content: "\2195";
+    font-size: 0.75em;
+    color: var(--text-muted);
+    opacity: 0.6;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+th.sortable.sorted-asc::after { content: "\25B2"; color: var(--accent-green); opacity: 1; }
+th.sortable.sorted-desc::after { content: "\25BC"; color: var(--accent-green); opacity: 1; }
+
+/* Grouping */
+.group-row {
+    font-weight: bold;
+    background-color: var(--bg-secondary);
+    cursor: pointer;
+}
+
+.group-row:hover { background-color: rgba(0, 102, 255, 0.05); }
+
+.toggle-icon {
+    display: inline-block;
+    transition: transform 0.2s ease-in-out;
+    color: var(--accent-green);
+}
+
+.group-row.expanded .toggle-icon { transform: rotate(90deg); }
+
+/* Dropdown */
+.btn-group { position: relative; }
+.btn-group .dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    min-width: 180px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    list-style: none;
+    padding: 8px 0;
+    margin: 4px 0 0 0;
+}
+
+.btn-group .dropdown-menu li { list-style: none; }
+.btn-group.show .dropdown-menu { display: block; }
+.dropdown-item {
+    width: 100%;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+.dropdown-item:hover {
+    background: var(--accent-green-bg);
+    color: var(--accent-green);
+}
+.dropdown-toggle::after { content: "▼"; font-size: 0.6em; margin-left: 6px; }
+
+/* Column resizer */
+.column-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+}
+
+.column-resizer:hover {
+    background: var(--accent-green);
+    opacity: 0.5;
+}
+
+/* Grouping Modal (shared styles for standalone mode) */
+.grouping-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
+.grouping-modal-content {
+    background-color: #1f1f1f !important;
+    border: 1px solid var(--border-color);
+    margin: 10% auto;
+    padding: 24px;
+    width: 80%;
+    max-width: 700px;
+    border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+    position: relative;
+    color: var(--text-primary);
+}
+.grouping-modal-content h2 { color: var(--text-secondary); margin-bottom: 16px; padding-right: 30px; }
+.grouping-hint { color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; }
+.grouping-close { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; }
+.grouping-close:hover { color: var(--accent-red); }
+
+.grouping-constructor { display: flex; justify-content: space-between; gap: 16px; }
+.grouping-available-fields, .grouping-selected-fields {
+    width: 48%;
+    border: 1px solid var(--border-color);
+    padding: 16px;
+    border-radius: 12px;
+    background-color: var(--bg-secondary);
+    min-height: 200px;
+}
+.grouping-available-fields h3, .grouping-selected-fields h3 { color: var(--text-secondary); margin: 0 0 12px 0; font-size: 0.95rem; font-weight: 600; }
+.grouping-available-fields ul, .grouping-selected-fields ul { list-style-type: none; padding: 0; margin: 0; min-height: 150px; }
+.grouping-available-fields li, .grouping-selected-fields li {
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: grab;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    user-select: none;
+}
+.grouping-available-fields li:hover, .grouping-selected-fields li:hover {
+    border-color: var(--accent-green-border);
+    background: var(--accent-green-bg);
+}
+.sortable-ghost { background-color: var(--accent-green-bg) !important; border-color: var(--accent-green) !important; opacity: 0.6; }
+.sortable-chosen { opacity: 0.9; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+.grouping-column-selection { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+.grouping-column-selection h3 { color: var(--text-secondary); margin: 0 0 12px 0; font-size: 0.95rem; font-weight: 600; }
+.grouping-column-selection label { color: var(--text-primary); display: block; padding: 8px 0; cursor: pointer; }
+.grouping-column-selection input[type="checkbox"] { margin-right: 8px; accent-color: var(--accent-green); width: 16px; height: 16px; vertical-align: middle; }
+
+.grouping-apply-btn {
+    margin-top: 20px;
+    width: 100%;
+    background: var(--accent-green);
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+.grouping-apply-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+/* Pagination */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+    color: var(--text-muted);
+}
+.pagination-controls button {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.pagination-controls button:hover {
+    background-color: var(--accent-green-bg);
+    border-color: var(--accent-green-border);
+}
+.pagination-controls button:disabled {
+    background-color: var(--bg-secondary);
+    color: var(--text-muted);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Details toggle */
+details { margin: 0 0 20px 0; }
+details summary {
+    list-style: none;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+details summary:hover {
+    border-color: var(--accent-green-border);
+}
+details summary::before { content: "▶ "; display: inline-block; transition: transform 0.2s; color: var(--accent-green); }
+details[open] summary::before { content: "▼ "; }
+details[open] summary { border-radius: 8px 8px 0 0; }
+
+/* Loading state */
+.loading-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 15, 26, 0.9);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+}
+
+.loading-overlay.active { display: flex; }
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid var(--border-color);
+    border-top: 5px solid var(--accent-green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .table-container { margin: 10px -20px; border-radius: 0; }
+    table { min-width: 600px; font-size: 0.8em; }
+    th, td { padding: 8px 4px; }
+    th:nth-child(1), td:nth-child(1) { max-width: 120px; }
+    th:nth-child(2), td:nth-child(2) { max-width: 100px; }
+}
+</style>
+
+
+<div class="sales-report-container">
+    <div class="report-header" style="position:relative;">
+        <a href="/" style="position:absolute;top:15px;left:20px;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#888;font-size:0.85em;text-decoration:none;transition:all 0.2s ease;" onmouseover="this.style.color='#e4e4e4';this.style.borderColor='rgba(255,255,255,0.2)'" onmouseout="this.style.color='#888';this.style.borderColor='rgba(255,255,255,0.08)'">← Главная</a>
+        <h1>Отчет о продажах</h1>
+        <p>Период: <span id="period-display">/*@@PERIOD_DISPLAY@@*/</span></p>
+    </div>
+
+    <div class="main-content" style="position: relative;">
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="spinner"></div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h3>Общий оборот</h3>
+                <p class="metric-value" id="metric-revenue">43 137 677.89 ₽</p>
+            </div>
+            <div class="metric-card">
+                <h3>Продано товаров</h3>
+                <p class="metric-value" id="metric-quantity">24 634 шт.</p>
+            </div>
+            <div class="metric-card">
+                <h3>Средняя стоимость ед.</h3>
+                <p class="metric-value" id="metric-avg">1 751.12 ₽</p>
+            </div>
+        </div>
+
+        <details open id="chart-section">
+            <summary>Динамика продаж по дням</summary>
+            <div class="chart-container">
+                <canvas id="sales-chart"></canvas>
+            </div>
+        </details>
+
+        <div class="controls" style="margin-bottom:12px;">
+            <label style="font-size:0.85em;color:var(--text-muted);margin-right:8px;">📅 Период:</label>
+            <input type="date" id="sales-start-date" value="/*@@START_DATE@@*/"
+                   style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:8px;color:var(--text-primary);font-size:0.9em;">
+            <span style="color:var(--text-muted);margin:0 6px;">—</span>
+            <input type="date" id="sales-end-date" value="/*@@END_DATE@@*/"
+                   style="padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:8px;color:var(--text-primary);font-size:0.9em;">
+            <button id="sales-apply-dates"
+                    style="padding:8px 18px;background:linear-gradient(135deg,#4ade80,#22c55e);color:#000;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:all 0.3s ease;"
+                    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+                Применить
+            </button>
+        </div>
+
+        <div class="controls d-flex align-items-center gap-2 flex-wrap">
+            <div class="btn-group">
+                <button id="btn-group-main" class="dropdown-toggle">Сгруппировать</button>
+                <ul class="dropdown-menu">
+                    <li><button class="dropdown-item" data-view="all">Все записи</button></li>
+                    <li><button class="dropdown-item" data-view="byProduct">По товарам</button></li>
+                    <li><button class="dropdown-item" data-view="byBuyer">По покупателям</button></li>
+                    <li><button class="dropdown-item" data-view="byOrder">По заказам</button></li>
+                    <li><button class="dropdown-item" data-view="byWeek">По неделям</button></li>
+                    <li><button class="dropdown-item" data-view="byResponsible">По ответственному</button></li>
+                </ul>
+            </div>
+
+            <button id="btn-collapse-all" title="Свернуть все">⏫</button>
+            <button id="btn-expand-all" title="Развернуть все">⏬</button>
+            <button id="btn-reset-columns" title="Сбросить ширину">↻</button>
+            <button id="btn-group-settings" title="Настроить группировку">⚙️</button>
+
+            <input type="text" id="filter-input" placeholder="Фильтр по таблице..." class="flex-grow-1">
+        </div>
+
+        <div class="table-container">
+            <table id="sales-table">
+                <thead></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="pagination-controls" class="pagination-controls" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- Modal for grouping settings (uses shared grouping modal styles) -->
+<div id="salesGroupingModal" class="grouping-modal" style="display: none;">
+    <div class="grouping-modal-content">
+        <span class="grouping-close">&times;</span>
+        <h2>Настроить иерархию группировки</h2>
+        <p class="grouping-hint">Перетащите поля из "Доступных" в "Выбранные", чтобы задать порядок группировки.</p>
+        <div class="grouping-constructor">
+            <div class="grouping-available-fields">
+                <h3>Доступные поля</h3>
+                <ul id="salesGroupingModal-available"></ul>
+            </div>
+            <div class="grouping-selected-fields">
+                <h3>Выбранные поля</h3>
+                <ul id="salesGroupingModal-selected"></ul>
+            </div>
+        </div>
+        <div class="grouping-column-selection" id="salesGroupingModal-columns">
+            <h3>Выбор столбцов</h3>
+            <!-- Column checkboxes rendered via JS -->
+        </div>
+        <button class="grouping-apply-btn" id="salesGroupingModal-apply">Применить группировку</button>
+    </div>
+</div>
+
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<script>
+(function() {
+    'use strict';
+
+    // ========== CONFIGURATION ==========
+    const CONFIG = {
+        // Данные передаются при рендеринге (TG) или загружаются через API (Web)
+
+        salesData: /*@@SALES_DATA@@*/[],
+
+        dailySalesData: /*@@DAILY_SALES_DATA@@*/[],
+
+        revenueCol: "Сумма",
+        quantityCol: "Количество",
+        dateCol: "Дата",
+        costCol: "Себестоимость",
+        orderCol: "ЗаказПокупателя",
+        responsibleCol: "Ответственный",
+
+        // API mode for web cabinet (auto-detect: if no sales_data, use API)
+        apiMode: false,
+        apiUrl: "/report/sales"
+    };
+
+    // ========== FIELD CONFIGURATION ==========
+    const AVAILABLE_FIELDS = [
+        { key: 'Контрагент', label: 'Покупатель' },
+        { key: 'Номенклатура', label: 'Товар' },
+        { key: 'ЗаказПокупателя', label: 'Заказ' },
+        { key: 'Ответственный', label: 'Ответственный' },
+        { key: '_week', label: 'Неделя' }
+    ];
+
+    const COLUMN_CHECKBOXES = [
+        { id: 'chk-revenue', label: 'Выручка', field: 'revenue', checked: true },
+        { id: 'chk-cost', label: 'Себестоимость', field: 'cost', checked: true },
+        { id: 'chk-profit', label: 'Прибыль', field: 'profit', checked: true }
+    ];
+
+    // ========== STATE ==========
+    const state = {
+        salesData: CONFIG.salesData || [],
+        dailySalesData: CONFIG.dailySalesData,
+        currentView: 'all',
+        filterTerm: '',
+        customGroupKeys: [],
+        currentPage: 1,
+        rowsPerPage: 100,
+        sortColumn: null,
+        sortDirection: 'asc',
+        showRevenue: true,
+        showCost: true,
+        showProfit: true
+    };
+
+    // GroupingConstructor instance
+    let groupingConstructor = null;
+
+    // ========== DOM ELEMENTS ==========
+    const table = document.getElementById('sales-table');
+    const tableHead = table?.querySelector('thead');
+    const tableBody = table?.querySelector('tbody');
+    const filterInput = document.getElementById('filter-input');
+    const paginationControls = document.getElementById('pagination-controls');
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    // ========== HELPERS ==========
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(value || 0);
+    }
+
+    function formatQuantity(value) {
+        return new Intl.NumberFormat('ru-RU').format(value || 0);
+    }
+
+    function formatCompactNumber(value) {
+        if (Math.abs(value) >= 1e9) return (value / 1e9).toFixed(1) + 'млрд ₽';
+        if (Math.abs(value) >= 1e6) return (value / 1e6).toFixed(1) + 'млн ₽';
+        if (Math.abs(value) >= 1e3) return (value / 1e3).toFixed(0) + 'тыс ₽';
+        return formatCurrency(value);
+    }
+
+    function getStartOfWeek(dateString) {
+        if (!dateString) return 'Без даты';
+        try {
+            const date = new Date(dateString);
+            const dayOfWeek = date.getDay();
+            const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const monday = new Date(date.setDate(diff));
+            return monday.toLocaleDateString('ru-RU');
+        } catch (e) {
+            return 'Неверная дата';
+        }
+    }
+
+    function showLoading(show) {
+        if (loadingOverlay) {
+            loadingOverlay.classList.toggle('active', show);
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    // ========== DATA PROCESSING ==========
+    function calculateTotals(data) {
+        return data.reduce((totals, row) => {
+            totals.quantity += row[CONFIG.quantityCol] || 0;
+            totals.revenue += row[CONFIG.revenueCol] || 0;
+            totals.cost += row[CONFIG.costCol] || 0;
+            totals.count += 1;
+            return totals;
+        }, { quantity: 0, revenue: 0, cost: 0, count: 0 });
+    }
+
+    // ReportGrouping модуль (используется только для UI-хелперов)
+    const RG = window.ReportGrouping || null;
+
+    function groupDataRecursively(data, keys) {
+        if (!data || data.length === 0) return {};
+        if (keys.length === 0) {
+            return data.reduce((acc, row) => {
+                acc.quantity += row[CONFIG.quantityCol] || 0;
+                acc.revenue += row[CONFIG.revenueCol] || 0;
+                acc.cost += row[CONFIG.costCol] || 0;
+                acc._isLeaf = true;
+                return acc;
+            }, { quantity: 0, revenue: 0, cost: 0, _isLeaf: true });
+        }
+
+        const [currentKey, ...remainingKeys] = keys;
+        const grouped = data.reduce((acc, row) => {
+            const groupValue = row[currentKey] || 'Не указан';
+            if (!acc[groupValue]) acc[groupValue] = [];
+            acc[groupValue].push(row);
+            return acc;
+        }, {});
+
+        for (const groupName in grouped) {
+            grouped[groupName] = groupDataRecursively(grouped[groupName], remainingKeys);
+        }
+        return grouped;
+    }
+
+    function getNodeSummary(node) {
+        if (node._isLeaf || typeof node.quantity !== 'undefined') {
+            return { quantity: node.quantity || 0, revenue: node.revenue || 0, cost: node.cost || 0 };
+        }
+        return Object.values(node).reduce((acc, childNode) => {
+            if (typeof childNode === 'object' && childNode !== null && !String(childNode).startsWith('_')) {
+                const childSummary = getNodeSummary(childNode);
+                acc.quantity += childSummary.quantity;
+                acc.revenue += childSummary.revenue;
+                acc.cost += childSummary.cost;
+            }
+            return acc;
+        }, { quantity: 0, revenue: 0, cost: 0 });
+    }
+
+    // ========== RENDERING ==========
+    function renderTotalRow(totals, headers) {
+        const profit = totals.revenue - totals.cost;
+        const nonNumericCols = headers.filter(h => !['Кол-во', 'Сумма', 'Себест.', 'Прибыль'].includes(h));
+
+        let html = `<tr class="total-row">
+            <td colspan="${nonNumericCols.length}" class="total-label"><strong>ИТОГО (${totals.count} записей):</strong></td>`;
+
+        if (headers.includes('Кол-во')) {
+            html += `<td style="text-align:right"><strong>${formatQuantity(totals.quantity)}</strong></td>`;
+        }
+        if (state.showRevenue && headers.includes('Сумма')) {
+            html += `<td style="text-align:right" title="${formatCurrency(totals.revenue)}"><strong>${formatCompactNumber(totals.revenue)}</strong></td>`;
+        }
+        if (state.showCost && headers.includes('Себест.')) {
+            html += `<td style="text-align:right" title="${formatCurrency(totals.cost)}"><strong>${formatCompactNumber(totals.cost)}</strong></td>`;
+        }
+        if (state.showProfit && headers.includes('Прибыль')) {
+            html += `<td style="text-align:right" class="${profit < 0 ? 'negative' : 'positive'}" title="${formatCurrency(profit)}"><strong>${formatCompactNumber(profit)}</strong></td>`;
+        }
+
+        return html + '</tr>';
+    }
+
+    function renderGroupedRows(groupedData, level = 0, parentId = '') {
+        let html = '';
+        let sortedKeys = Object.keys(groupedData).filter(k => !k.startsWith('_'));
+
+        // Сортируем по revenue (desc)
+        sortedKeys.sort((a, b) => {
+            const sumA = getNodeSummary(groupedData[a]).revenue || 0;
+            const sumB = getNodeSummary(groupedData[b]).revenue || 0;
+            return sumB - sumA;
+        });
+
+        for (const key of sortedKeys) {
+            const node = groupedData[key];
+            const isLeafNode = node._isLeaf === true || typeof node.quantity !== 'undefined';
+            const summary = getNodeSummary(node);
+            const rowId = 'grp_' + Math.random().toString(36).substr(2, 9);
+
+            let rowClasses = [];
+            if (!isLeafNode) rowClasses.push('group-row');
+
+            const styleAttr = parentId ? 'style="display:none;"' : '';
+            html += `<tr class="${rowClasses.join(' ')}" data-id="${rowId}" data-parent="${parentId || ''}" ${styleAttr}>`;
+
+            for (let i = 0; i < level; i++) html += '<td></td>';
+
+            const toggleIcon = isLeafNode ? '' : '<span class="toggle-icon">▶</span> ';
+            const escKey = escapeHtml(key);
+            html += `<td colspan="${state.customGroupKeys.length - level}">${toggleIcon}${escKey}</td>`;
+
+            html += `<td style="text-align:right">${formatQuantity(summary.quantity)}</td>`;
+            if (state.showRevenue) html += `<td style="text-align:right">${formatCurrency(summary.revenue)}</td>`;
+            if (state.showCost) html += `<td style="text-align:right">${formatCurrency(summary.cost)}</td>`;
+            if (state.showProfit) {
+                const profit = summary.revenue - summary.cost;
+                html += `<td style="text-align:right" class="${profit < 0 ? 'negative' : 'positive'}">${formatCurrency(profit)}</td>`;
+            }
+            html += '</tr>';
+
+            if (!isLeafNode) {
+                html += renderGroupedRows(node, level + 1, rowId);
+            }
+        }
+        return html;
+    }
+
+    function toggleChildren(parentId, show) {
+        // Используем модуль если доступен
+        if (RG) {
+            RG.toggleChildren(parentId, show, tableBody);
+            return;
+        }
+
+        // Fallback
+        const children = tableBody.querySelectorAll(`[data-parent="${parentId}"]`);
+        children.forEach(child => {
+            child.style.display = show ? '' : 'none';
+            if (!show) {
+                child.classList.remove('expanded');
+                const icon = child.querySelector('.toggle-icon');
+                if (icon) icon.textContent = '▶';
+                toggleChildren(child.dataset.id, false);
+            }
+        });
+    }
+
+    function renderTable() {
+        if (!tableHead || !tableBody) return;
+        if (!state.salesData || state.salesData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#666;">Нет данных для отображения</td></tr>';
+            return;
+        }
+
+        const lowerFilter = state.filterTerm.toLowerCase();
+        let filteredData = state.salesData.filter(row => {
+            return Object.values(row).some(val =>
+                String(val).toLowerCase().includes(lowerFilter)
+            );
+        });
+
+        // Sort
+        if (state.sortColumn) {
+            const dir = state.sortDirection === 'asc' ? 1 : -1;
+            filteredData.sort((a, b) => {
+                const valA = a[state.sortColumn] ?? 0;
+                const valB = b[state.sortColumn] ?? 0;
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return (valA - valB) * dir;
+                }
+                return String(valA).localeCompare(String(valB), 'ru-RU') * dir;
+            });
+        }
+
+        // Week grouping prep
+        const needsWeekGrouping = state.currentView === 'byWeek' ||
+                                  (state.currentView === 'custom' && state.customGroupKeys.includes('_week'));
+
+        if (needsWeekGrouping && CONFIG.dateCol) {
+            filteredData = filteredData.map(row => ({ ...row, _week: getStartOfWeek(row[CONFIG.dateCol]) }));
+        }
+
+        let headers = [];
+        let tableHtml = '';
+        paginationControls.style.display = 'none';
+
+        if (state.currentView === 'all') {
+            headers = ['Контрагент', 'Номенклатура', 'Заказ', 'Ответств.', 'Кол-во'];
+            if (state.showRevenue) headers.push('Сумма');
+            if (state.showCost) headers.push('Себест.');
+            if (state.showProfit) headers.push('Прибыль');
+
+            const avgRevenue = filteredData.length ? filteredData.reduce((s, r) => s + (r[CONFIG.revenueCol] || 0), 0) / filteredData.length : 0;
+
+            // Pagination
+            const totalPages = Math.ceil(filteredData.length / state.rowsPerPage);
+            if (totalPages > 1) {
+                renderPaginationControls(filteredData.length, totalPages);
+            }
+
+            const start = (state.currentPage - 1) * state.rowsPerPage;
+            const paginatedData = filteredData.slice(start, start + state.rowsPerPage);
+
+            tableHtml = paginatedData.map(row => {
+                const revenueCell = state.showRevenue ? `<td style="text-align:right" class="${(row[CONFIG.revenueCol] || 0) >= avgRevenue ? 'positive' : 'negative'}">${formatCurrency(row[CONFIG.revenueCol] || 0)}</td>` : '';
+                const costCell = state.showCost ? `<td style="text-align:right">${formatCurrency(row[CONFIG.costCol] || 0)}</td>` : '';
+                const profit = (row[CONFIG.revenueCol] || 0) - (row[CONFIG.costCol] || 0);
+                const profitCell = state.showProfit ? `<td style="text-align:right" class="${profit < 0 ? 'negative' : 'positive'}">${formatCurrency(profit)}</td>` : '';
+
+                return `<tr>
+                    <td>${escapeHtml(row['Контрагент'] || 'Не указан')}</td>
+                    <td>${escapeHtml(row['Номенклатура'] || 'Не указан')}</td>
+                    <td>${escapeHtml(row['ЗаказПокупателя'] || '')}</td>
+                    <td>${escapeHtml(row['Ответственный'] || 'Не указан')}</td>
+                    <td style="text-align:right">${formatQuantity(row[CONFIG.quantityCol] || 0)}</td>
+                    ${revenueCell}${costCell}${profitCell}
+                </tr>`;
+            }).join('');
+
+            // Add total row
+            const totals = calculateTotals(filteredData);
+            tableHtml += renderTotalRow(totals, headers);
+
+        } else {
+            // Grouped views
+            let groupKey;
+            switch (state.currentView) {
+                case 'byProduct': groupKey = 'Номенклатура'; break;
+                case 'byBuyer': groupKey = 'Контрагент'; break;
+                case 'byOrder': groupKey = 'ЗаказПокупателя'; break;
+                case 'byWeek': groupKey = '_week'; break;
+                case 'byResponsible': groupKey = 'Ответственный'; break;
+                default: groupKey = state.customGroupKeys[0] || 'Контрагент';
+            }
+
+            state.customGroupKeys = state.currentView === 'custom' ? state.customGroupKeys : [groupKey];
+
+            headers = [groupKey === '_week' ? 'Неделя' : groupKey, 'Кол-во'];
+            if (state.showRevenue) headers.push('Сумма');
+            if (state.showCost) headers.push('Себест.');
+            if (state.showProfit) headers.push('Прибыль');
+
+            const grouped = groupDataRecursively(filteredData, state.customGroupKeys);
+            tableHtml = renderGroupedRows(grouped);
+        }
+
+        // Render headers
+        const sortableHeaders = ['Контрагент', 'Номенклатура', 'Кол-во', 'Сумма', 'Себест.'];
+        tableHead.innerHTML = `<tr>${headers.map(h => `<th class="${sortableHeaders.includes(h) ? 'sortable' : ''}">${h}</th>`).join('')}</tr>`;
+        tableBody.innerHTML = tableHtml;
+
+        // Add sort handlers
+        tableHead.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const colMap = {
+                    'Контрагент': 'Контрагент',
+                    'Номенклатура': 'Номенклатура',
+                    'Кол-во': CONFIG.quantityCol,
+                    'Сумма': CONFIG.revenueCol,
+                    'Себест.': CONFIG.costCol
+                };
+                const columnKey = colMap[th.textContent.trim()];
+                if (columnKey) {
+                    if (state.sortColumn === columnKey) {
+                        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        state.sortColumn = columnKey;
+                        state.sortDirection = 'asc';
+                    }
+                    renderTable();
+                }
+            });
+        });
+
+        // Add group toggle handlers - используем модуль если доступен
+        if (RG) {
+            RG.attachGroupHandlers(tableBody);
+        } else {
+            tableBody.querySelectorAll('.group-row').forEach(row => {
+                row.addEventListener('click', () => {
+                    const rowId = row.dataset.id;
+                    const isExpanded = row.classList.contains('expanded');
+                    row.classList.toggle('expanded', !isExpanded);
+
+                    const icon = row.querySelector('.toggle-icon');
+                    if (icon) icon.textContent = isExpanded ? '▶' : '▼';
+
+                    toggleChildren(rowId, !isExpanded);
+                });
+            });
+        }
+    }
+
+    function renderPaginationControls(totalRows, totalPages) {
+        paginationControls.style.display = 'flex';
+        const startRow = (state.currentPage - 1) * state.rowsPerPage + 1;
+        const endRow = Math.min(startRow + state.rowsPerPage - 1, totalRows);
+
+        paginationControls.innerHTML = `
+            <button id="prev-page" ${state.currentPage === 1 ? 'disabled' : ''}>« Назад</button>
+            <span>Страница ${state.currentPage} из ${totalPages} (строки ${startRow}-${endRow} из ${totalRows})</span>
+            <button id="next-page" ${state.currentPage === totalPages ? 'disabled' : ''}>Вперед »</button>
+        `;
+
+        document.getElementById('prev-page')?.addEventListener('click', () => {
+            if (state.currentPage > 1) { state.currentPage--; renderTable(); }
+        });
+        document.getElementById('next-page')?.addEventListener('click', () => {
+            if (state.currentPage < totalPages) { state.currentPage++; renderTable(); }
+        });
+    }
+
+    function renderChart() {
+        const ctx = document.getElementById('sales-chart')?.getContext('2d');
+        if (!ctx || !state.dailySalesData || state.dailySalesData.length === 0) {
+            const container = document.querySelector('.chart-container');
+            if (container) container.style.display = 'none';
+            return;
+        }
+
+        const labels = state.dailySalesData.map(d => new Date(d.date).toLocaleDateString('ru-RU'));
+        const data = state.dailySalesData.map(d => d.revenue);
+
+        // Dark theme colors
+        const textColor = '#888';
+        const gridColor = 'rgba(255,255,255,0.05)';
+        const accentGreen = '#4ade80';
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Оборот по дням',
+                    data: data,
+                    borderColor: accentGreen,
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: accentGreen,
+                    pointBorderColor: accentGreen,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements.length === 0) return;
+                    const index = elements[0].index;
+                    // Используем ISO-префикс "2026-03-28" чтобы он совпал с полем Дата в строках
+                    const isoPrefix = state.dailySalesData[index].date.substring(0, 10);
+                    filterInput.value = isoPrefix;
+                    state.filterTerm = isoPrefix;
+                    state.currentPage = 1;
+                    renderTable();
+                    document.getElementById('sales-table')?.scrollIntoView({ behavior: 'smooth' });
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 15, 26, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: accentGreen,
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1,
+                        padding: 12,
+                        callbacks: {
+                            label: ctx => formatCurrency(ctx.parsed.y)
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: gridColor },
+                        ticks: { color: textColor }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: gridColor },
+                        ticks: {
+                            color: textColor,
+                            callback: value => formatCompactNumber(value)
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateMetrics() {
+        if (!state.salesData || state.salesData.length === 0) return;
+
+        const totals = calculateTotals(state.salesData);
+        const avgCheck = totals.quantity > 0 ? totals.revenue / totals.quantity : 0;
+
+        const revenueEl = document.getElementById('metric-revenue');
+        const quantityEl = document.getElementById('metric-quantity');
+        const avgEl = document.getElementById('metric-avg');
+
+        if (revenueEl) revenueEl.textContent = formatCompactNumber(totals.revenue);
+        if (quantityEl) quantityEl.textContent = formatQuantity(totals.quantity) + ' шт.';
+        if (avgEl) avgEl.textContent = formatCurrency(avgCheck);
+    }
+
+    // ========== API LOADING (for web cabinet) ==========
+    async function loadDataFromAPI(startDate, endDate) {
+        showLoading(true);
+        try {
+            const response = await fetch(`${CONFIG.apiUrl}?start_date=${startDate}&end_date=${endDate}`);
+            if (!response.ok) throw new Error('Ошибка загрузки данных');
+
+            const data = await response.json();
+
+            // Transform API data to match expected format
+            state.salesData = (data.items || []).map(item => ({
+                'Контрагент': item.buyer_name,
+                'Номенклатура': item.product_name,
+                'ЗаказПокупателя': item.order_name || '',
+                'Ответственный': item.manager_name,
+                [CONFIG.quantityCol]: item.quantity,
+                [CONFIG.revenueCol]: item.revenue,
+                [CONFIG.costCol]: item.cost || 0,
+                [CONFIG.dateCol]: item.date
+            }));
+
+            // Build daily data for chart (prefer API-provided data)
+            if (data.daily_revenues && Object.keys(data.daily_revenues).length > 0) {
+                state.dailySalesData = Object.entries(data.daily_revenues)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([date, revenue]) => ({ date, revenue }));
+            } else {
+                // Fallback: build from items
+                const dailyMap = {};
+                state.salesData.forEach(row => {
+                    const date = row[CONFIG.dateCol];
+                    if (date) {
+                        dailyMap[date] = (dailyMap[date] || 0) + (row[CONFIG.revenueCol] || 0);
+                    }
+                });
+                state.dailySalesData = Object.entries(dailyMap)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([date, revenue]) => ({ date, revenue }));
+            }
+
+            updateMetrics();
+            renderTable();
+            renderChart();
+
+        } catch (error) {
+            console.error('Error loading data:', error);
+            tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#c0392b;">Ошибка: ${error.message}</td></tr>`;
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // ========== EVENT HANDLERS ==========
+    function initEventHandlers() {
+        // Filter input
+        filterInput?.addEventListener('keyup', (e) => {
+            state.filterTerm = e.target.value;
+            state.currentPage = 1;
+            renderTable();
+        });
+
+        // Dropdown toggle
+        const dropdownToggle = document.getElementById('btn-group-main');
+        if (dropdownToggle) {
+            dropdownToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownToggle.parentElement.classList.toggle('show');
+            });
+
+            document.addEventListener('click', () => {
+                dropdownToggle.parentElement.classList.remove('show');
+            });
+        }
+
+        // View buttons
+        document.querySelectorAll('.dropdown-item[data-view]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.currentView = btn.dataset.view;
+                state.currentPage = 1;
+                renderTable();
+                dropdownToggle?.parentElement.classList.remove('show');
+            });
+        });
+
+        // Expand/collapse all - используем модуль если доступен
+        document.getElementById('btn-expand-all')?.addEventListener('click', () => {
+            if (RG) {
+                RG.expandAll(tableBody);
+            } else {
+                tableBody.querySelectorAll('.group-row').forEach(gr => {
+                    gr.classList.add('expanded');
+                    const icon = gr.querySelector('.toggle-icon');
+                    if (icon) icon.textContent = '▼';
+                    toggleChildren(gr.dataset.id, true);
+                });
+            }
+        });
+
+        document.getElementById('btn-collapse-all')?.addEventListener('click', () => {
+            if (RG) {
+                RG.collapseAll(tableBody);
+            } else {
+                tableBody.querySelectorAll('.group-row').forEach(gr => {
+                    gr.classList.remove('expanded');
+                    const icon = gr.querySelector('.toggle-icon');
+                    if (icon) icon.textContent = '▶';
+                    toggleChildren(gr.dataset.id, false);
+                });
+            }
+        });
+
+        // Grouping Constructor - open modal
+        document.getElementById('btn-group-settings')?.addEventListener('click', () => {
+            groupingConstructor?.open();
+        });
+    }
+
+    // ========== GROUPING CONSTRUCTOR INITIALIZATION ==========
+    function initGroupingConstructor() {
+        // Check if ReportGrouping is available (web mode)
+        if (typeof ReportGrouping !== 'undefined' && ReportGrouping.GroupingConstructor) {
+            groupingConstructor = new ReportGrouping.GroupingConstructor({
+                modalId: 'salesGroupingModal',
+                availableFields: AVAILABLE_FIELDS,
+                columnCheckboxes: COLUMN_CHECKBOXES,
+                onOpen: () => ({
+                    levels: state.customGroupKeys,
+                    columnVisibility: { revenue: state.showRevenue, cost: state.showCost, profit: state.showProfit }
+                }),
+                onApply: (selectedFields, columnVisibility) => {
+                    // Apply column visibility
+                    state.showRevenue = columnVisibility.revenue ?? true;
+                    state.showCost = columnVisibility.cost ?? true;
+                    state.showProfit = columnVisibility.profit ?? true;
+
+                    // Apply custom grouping if fields selected
+                    if (selectedFields.length > 0) {
+                        state.customGroupKeys = selectedFields;
+                        state.currentView = 'custom';
+                    }
+
+                    renderTable();
+                }
+            });
+        } else if (typeof Sortable !== 'undefined') {
+            // Standalone mode fallback - initialize Sortable directly
+            initStandaloneSortable();
+        }
+    }
+
+    function initStandaloneSortable() {
+        const availableList = document.getElementById('salesGroupingModal-available');
+        const selectedList = document.getElementById('salesGroupingModal-selected');
+        const columnsContainer = document.getElementById('salesGroupingModal-columns');
+        const modal = document.getElementById('salesGroupingModal');
+        const closeBtn = modal?.querySelector('.grouping-close');
+        const applyBtn = document.getElementById('salesGroupingModal-apply');
+
+        if (!availableList) return;
+
+        // Render fields
+        availableList.innerHTML = AVAILABLE_FIELDS.map(f =>
+            `<li data-key="${f.key}">${f.label}</li>`
+        ).join('');
+
+        // Render checkboxes
+        if (columnsContainer) {
+            columnsContainer.innerHTML = '<h3>Выбор столбцов</h3>' +
+                COLUMN_CHECKBOXES.map(c =>
+                    `<div><label><input type="checkbox" id="${c.id}" ${c.checked ? 'checked' : ''}> ${c.label}</label></div>`
+                ).join('');
+        }
+
+        // Initialize Sortable
+        Sortable.create(availableList, { group: 'grouping-fields', animation: 150, ghostClass: 'sortable-ghost' });
+        Sortable.create(selectedList, { group: 'grouping-fields', animation: 150, ghostClass: 'sortable-ghost' });
+
+        // Modal handlers
+        closeBtn?.addEventListener('click', () => modal.style.display = 'none');
+        window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+        // Apply button
+        applyBtn?.addEventListener('click', () => {
+            state.showRevenue = document.getElementById('chk-revenue')?.checked ?? true;
+            state.showCost = document.getElementById('chk-cost')?.checked ?? true;
+            state.showProfit = document.getElementById('chk-profit')?.checked ?? true;
+
+            const selectedFields = Array.from(selectedList.querySelectorAll('li'))
+                .map(li => li.dataset.key).filter(Boolean);
+
+            if (selectedFields.length > 0) {
+                state.customGroupKeys = selectedFields;
+                state.currentView = 'custom';
+            }
+
+            renderTable();
+            modal.style.display = 'none';
+        });
+
+        // Утилиты синхронизации (аналог методов GroupingConstructor)
+        function setSelectedFields(keys) {
+            const allItems = [...availableList.querySelectorAll('li'), ...selectedList.querySelectorAll('li')];
+            allItems.forEach(li => availableList.appendChild(li));
+            keys.forEach(key => {
+                const li = availableList.querySelector(`li[data-key="${key}"]`);
+                if (li) selectedList.appendChild(li);
+            });
+        }
+
+        function setColumnVisibility(visibility) {
+            COLUMN_CHECKBOXES.forEach(chk => {
+                const checkbox = document.getElementById(chk.id);
+                if (checkbox && visibility.hasOwnProperty(chk.field)) {
+                    checkbox.checked = visibility[chk.field];
+                }
+            });
+        }
+
+        // Интерфейс groupingConstructor для standalone режима
+        groupingConstructor = {
+            open: () => {
+                if (modal) {
+                    setSelectedFields(state.customGroupKeys);
+                    setColumnVisibility({ revenue: state.showRevenue, cost: state.showCost, profit: state.showProfit });
+                    modal.style.display = 'block';
+                }
+            },
+            close: () => { if (modal) modal.style.display = 'none'; }
+        };
+    }
+
+    // ========== INITIALIZATION ==========
+    function init() {
+        initEventHandlers();
+        initGroupingConstructor();
+
+        if (CONFIG.apiMode) {
+            // Web mode: wait for external trigger to load data
+            window.loadSalesReport = loadDataFromAPI;
+        } else if (state.salesData && state.salesData.length > 0) {
+            // TG mode: data already loaded
+            renderTable();
+            renderChart();
+        }
+    }
+
+    // Period navigation
+    document.getElementById('sales-apply-dates')?.addEventListener('click', () => {
+        const start = document.getElementById('sales-start-date').value;
+        const end   = document.getElementById('sales-end-date').value;
+        if (start && end) {
+            window.location.href = `/report/sales?start_date=${start}&end_date=${end}`;
+        }
+    });
+
+    // Run on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+
+<div class="footer" style="text-align: center; margin-top: 30px; font-size: 0.9em; color: #888; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 20px; border-radius: 12px;">
+    <p style="margin: 0;">Отчет сгенерирован /*@@GENERATED_AT@@*/</p>
+    <p style="margin: 8px 0 0 0; color: #0066FF;">
+        <a href="https://t.me/unf_tg_1eska_bot" target="_blank" style="color: #0066FF; text-decoration: none;">
+            Telegram-бот 1Eska
+        </a>
+    </p>
+</div>
+
+</body>
+</html>

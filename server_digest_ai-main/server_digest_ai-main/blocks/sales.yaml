@@ -1,0 +1,50 @@
+# Блок: Продажи
+# Расходные накладные за период
+
+id: sales
+name: "Продажи"
+enabled: true
+priority: 2
+
+source:
+  entity: "Document_РасходнаяНакладная"
+  type: document
+  fields:
+    - Date
+    - Number
+    - СуммаДокумента
+    - Контрагент_Key
+    - Ответственный_Key
+    - Posted
+  filter: "Posted eq true"
+  orderby: "Date desc"
+  period: yesterday         # загружает за вчера (date_from .. date_to)
+
+resolve:
+  - field: "Контрагент_Key"
+    catalog: "Catalog_Контрагенты"
+  - field: "Ответственный_Key"
+    catalog: "Catalog_Сотрудники"
+
+mask:
+  - field: "Контрагент_Key"
+    prefix: "Контрагент"
+    type: guid_ref
+  - field: "Ответственный_Key"
+    prefix: "Сотрудник"
+    type: guid_ref
+
+aggregation:
+  type: group_sum
+  group_by: "Контрагент_Key"
+  sum_field: "СуммаДокумента"
+  max_rows: 20              # топ-20 покупателей
+
+template: |
+  ПРОДАЖИ ({period_label}): {total}, накладных: {count}
+    Топ покупателей:
+    {top_items}
+
+hide_if_empty: false        # "накладных нет" — тоже полезная информация
+
+depends_on: []

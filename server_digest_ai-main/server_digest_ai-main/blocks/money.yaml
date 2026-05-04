@@ -1,0 +1,36 @@
+# Блок: Деньги и ликвидность
+# Остатки на расчётных счетах и в кассах
+
+id: money
+name: "Деньги"
+enabled: true
+priority: 1                # первым в дайджесте — самое важное
+
+source:
+  entity: "AccumulationRegister_ДенежныеСредства/Balance"
+  type: balance             # balance | turnovers | document | balance_and_turnovers
+  fields:
+    - ТипДенежныхСредств
+    - БанковскийСчетКасса
+    - СуммаBalance
+  filter: "СуммаBalance gt 0"
+  orderby: null
+  period: none              # none | yesterday | 7d | 14d | 30d | 90d | mtd
+
+resolve: []                 # нет GUID-полей для резолва в названия
+
+mask: []                    # нет чувствительных полей
+
+aggregation:
+  type: total_by_field      # total_by_field | group_sum | time_series | classify | list
+  sum_field: "СуммаBalance"
+  group_by: "ТипДенежныхСредств"
+  max_rows: null            # все записи — их мало
+
+template: |
+  ДЕНЬГИ НА СЧЕТАХ: {total}
+  {rows}
+
+hide_if_empty: false        # показывать "0 ₽" — это важная информация
+
+depends_on: []              # нет зависимостей от других блоков

@@ -1,0 +1,55 @@
+id: debts_overdue
+name: "Просроченная дебиторка"
+enabled: true
+priority: 4    # сразу после debts (priority 3)
+
+source:
+  entity: "AccumulationRegister_РасчетыСПокупателями/Balance"
+  type: balance
+  fields:
+    - Контрагент_Key
+    - Договор_Key
+    - Документ
+    - ТипРасчетов
+    - СуммаBalance
+  filter: "СуммаBalance gt 0 and ТипРасчетов eq 'Долг'"
+  orderby: "СуммаBalance desc"
+  period: none
+
+compute:
+  - name: "ДнейПросрочки"
+    op: days_from_today
+    a: "Date"
+
+resolve:
+  - field: "Контрагент_Key"
+    catalog: "Catalog_Контрагенты"
+
+mask:
+  - field: "Контрагент_Key"
+    prefix: "Контрагент"
+    type: guid_ref
+
+aggregation:
+  type: list_top
+  sort_by: "СуммаBalance"
+  max_rows: 30
+  display_fields:
+    - Контрагент_Key
+    - Number
+    - Date
+    - СуммаBalance
+    - ДнейПросрочки
+
+template: null    # форматирование через _format_list_top
+
+hide_if_empty: true
+
+depends_on:
+  - block: debts_doc_headers
+    merge: join_parent
+    match_field: "Документ"
+    parent_field: "Ref_Key"
+    copy_fields:
+      - Date
+      - Number

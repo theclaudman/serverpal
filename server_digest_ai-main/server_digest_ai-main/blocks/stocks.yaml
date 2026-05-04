@@ -1,0 +1,52 @@
+# Блок: Остатки на складах
+# Физический остаток, резервы из заказов, свободный остаток
+# Зависит от блока order_items (резервы)
+
+id: stocks
+name: "Остатки"
+enabled: true
+priority: 4
+
+source:
+  entity: "AccumulationRegister_ЗапасыНаСкладах/Balance"
+  type: balance
+  fields:
+    - Номенклатура_Key
+    - СтруктурнаяЕдиница_Key
+    - КоличествоBalance
+  filter: "КоличествоBalance gt 0"
+  orderby: "КоличествоBalance desc"
+  top: 1000
+  period: none
+
+resolve:
+  - field: "Номенклатура_Key"
+    catalog: "Catalog_Номенклатура"
+
+mask: []                    # номенклатура не чувствительна
+
+aggregation:
+  type: classify            # специальный тип: critical / at_risk / top
+  physical_field: "КоличествоBalance"
+  item_field: "Номенклатура_Key"
+  low_threshold: 0.10       # свободно < 10% от физического = "под угрозой"
+  max_rows: 20              # топ остатков (кроме critical — те все)
+
+template: |
+  КРИТИЧНЫЕ ОСТАТКИ ({critical_count} позиций — заказов больше чем на складе):
+  {critical_items}
+
+  ПОД УГРОЗОЙ ({at_risk_count} позиций — свободно < 10%):
+  {at_risk_items}
+
+  ТОП ОСТАТКОВ (по количеству):
+  {top_items}
+
+hide_if_empty: false
+
+# Зависимость: для расчёта свободного остатка нужны резервы из заказов
+depends_on:
+  - block: order_items
+    merge: subtract_reserved  # qty_free = qty_physical - qty_reserved
+    match_field: "Номенклатура_Key"
+    reserve_field: "Количество"

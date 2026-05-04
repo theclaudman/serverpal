@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансовый дайджест</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:         #0f1117;
+            --bg-card:    #1a1d27;
+            --bg-input:   #12141c;
+            --border:     #2a2d3a;
+            --border-hl:  #3a3d4a;
+            --text:       #e4e4e7;
+            --text-dim:   #8b8d98;
+            --text-muted: #5a5c6a;
+            --accent:     #6c8aff;
+            --accent-dim: #4a62b3;
+            --green:      #4ade80;
+            --red:        #f87171;
+            --orange:     #fb923c;
+            --yellow:     #fbbf24;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Manrope', system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.55;
+        }
+
+        /* ── Layout ──────────────────────────────────── */
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ──────────────────────────────────── */
+        .header {
+            padding: 16px 20px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .header a.back {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+        .header a.back:hover { color: var(--text); }
+        .header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        /* ── Controls bar ────────────────────────────── */
+        .controls {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .controls label {
+            font-size: 12px;
+            color: var(--text-dim);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .controls select,
+        .controls input[type="date"] {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+        .controls select:focus,
+        .controls input[type="date"]:focus {
+            border-color: var(--accent);
+        }
+        /* fix date picker icon color in dark theme */
+        .controls input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.7);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+        }
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) { background: #5a7aee; }
+
+        .spacer { flex: 1; }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        .status-badge.ok { background: rgba(74,222,128,0.12); color: var(--green); }
+        .status-badge.warn { background: rgba(251,191,36,0.12); color: var(--yellow); }
+        .status-badge.err { background: rgba(248,113,113,0.12); color: var(--red); }
+
+        /* ── Chat area ───────────────────────────────── */
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Scrollbar */
+        .chat-area::-webkit-scrollbar { width: 6px; }
+        .chat-area::-webkit-scrollbar-track { background: transparent; }
+        .chat-area::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* ── Message bubbles ─────────────────────────── */
+        .msg {
+            max-width: 100%;
+            animation: fadeIn 0.25s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 6px;
+        }
+        .msg-label.system { color: var(--accent); }
+        .msg-label.user   { color: var(--orange); }
+        .msg-label.ai     { color: var(--green); }
+        .msg-label.error  { color: var(--red); }
+
+        .msg-body {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            line-height: 1.6;
+            overflow-wrap: break-word;
+        }
+        .msg-body.digest-body {
+            border-left: 3px solid var(--accent);
+        }
+        .msg-body.error-body {
+            border-left: 3px solid var(--red);
+            background: rgba(248,113,113,0.05);
+        }
+
+        /* ── Markdown inside messages ────────────────── */
+        .msg-body h2 {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 18px 0 8px 0;
+            color: var(--text);
+        }
+        .msg-body h2:first-child { margin-top: 0; }
+        .msg-body h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 14px 0 6px 0;
+            color: var(--text);
+        }
+        .msg-body p { margin: 6px 0; }
+        .msg-body ol, .msg-body ul {
+            margin: 6px 0 6px 18px;
+        }
+        .msg-body li { margin: 3px 0; }
+        .msg-body strong { color: #fff; }
+        .msg-body code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background: rgba(108,138,255,0.1);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+        .msg-body pre {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        .msg-body pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .msg-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .msg-meta .download-link {
+            color: var(--accent);
+            text-decoration: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .msg-meta .download-link:hover { text-decoration: underline; }
+
+        /* ── Loading indicator ────────────────────────── */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent);
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Welcome state ───────────────────────────── */
+        .welcome {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-dim);
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .welcome i { font-size: 40px; color: var(--border-hl); }
+        .welcome p { max-width: 380px; line-height: 1.5; font-size: 13px; }
+
+        /* ── Input bar ───────────────────────────────── */
+        .input-bar {
+            padding: 12px 20px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .input-bar input[type="text"] {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+        .input-bar input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+        .input-bar input[type="text"]::placeholder {
+            color: var(--text-muted);
+        }
+        .input-bar input[type="text"]:disabled {
+            opacity: 0.4;
+        }
+        .btn-send {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .btn-send:hover:not(:disabled) { background: #5a7aee; }
+        .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- Header -->
+    <div class="header">
+        <a href="/" class="back"><i class="bi bi-arrow-left"></i></a>
+        <h1><i class="bi bi-journal-text"></i>&ensp;Финансовый дайджест</h1>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <label for="sel-provider">Модель</label>
+        <select id="sel-provider">
+            <option value="lmstudio">Загрузка...</option>
+        </select>
+
+        <label for="inp-date">Дата</label>
+        <input type="date" id="inp-date">
+
+        <button class="btn btn-primary" id="btn-generate" onclick="doGenerate()">
+            <i class="bi bi-lightning-charge-fill"></i>
+            Сформировать
+        </button>
+
+        <span class="spacer"></span>
+        <span class="status-badge" id="badge-status" style="display:none;"></span>
+    </div>
+
+    <!-- Chat area -->
+    <div class="chat-area" id="chat-area">
+        <div class="welcome" id="welcome">
+            <i class="bi bi-graph-up-arrow"></i>
+            <p>
+                Выберите дату и модель, затем нажмите <strong>Сформировать</strong>
+                для создания утреннего дайджеста из данных 1С.
+            </p>
+            <p style="font-size:12px; color:var(--text-muted);">
+                После формирования дайджеста можно задавать уточняющие вопросы.
+            </p>
+        </div>
+    </div>
+
+    <!-- Input bar (вопросы) -->
+    <div class="input-bar">
+        <input type="text" id="inp-question" placeholder="Задайте вопрос по данным дайджеста..."
+               disabled onkeydown="if(event.key==='Enter')doAsk()">
+        <button class="btn-send" id="btn-ask" disabled onclick="doAsk()">
+            <i class="bi bi-send-fill"></i>
+        </button>
+    </div>
+</div>
+
+<script>
+// ── Состояние ──────────────────────────────────────────
+let digestReady = false;
+let busy = false;
+
+// ── DOM-элементы ───────────────────────────────────────
+const selProvider  = document.getElementById('sel-provider');
+const inpDate      = document.getElementById('inp-date');
+const btnGenerate  = document.getElementById('btn-generate');
+const chatArea     = document.getElementById('chat-area');
+const welcome      = document.getElementById('welcome');
+const inpQuestion  = document.getElementById('inp-question');
+const btnAsk       = document.getElementById('btn-ask');
+const badgeStatus  = document.getElementById('badge-status');
+
+// ── Инициализация ──────────────────────────────────────
+(function init() {
+    // Дата по умолчанию — вчера
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    inpDate.value = d.toISOString().split('T')[0];
+
+    // Загрузить провайдеры
+    loadProviders();
+})();
+
+async function loadProviders() {
+    try {
+        const r = await fetch('/api/digest/providers');
+        const data = await r.json();
+        if (data.providers && data.providers.length) {
+            selProvider.innerHTML = '';
+            data.providers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name + (p.available ? '' : ' (недоступен)');
+                opt.disabled = !p.available;
+                selProvider.appendChild(opt);
+            });
+        } else {
+            selProvider.innerHTML = '<option value="lmstudio">LM Studio (по умолчанию)</option>';
+        }
+    } catch {
+        selProvider.innerHTML = '<option value="lmstudio">LM Studio (по умолчанию)</option>';
+    }
+}
+
+// ── Блокировка UI ──────────────────────────────────────
+function setLoading(on) {
+    busy = on;
+    btnGenerate.disabled = on;
+    btnAsk.disabled = on || !digestReady;
+    inpQuestion.disabled = on || !digestReady;
+}
+
+function enableQA() {
+    digestReady = true;
+    inpQuestion.disabled = false;
+    btnAsk.disabled = false;
+    inpQuestion.placeholder = 'Задайте вопрос по данным дайджеста...';
+    inpQuestion.focus();
+}
+
+// ── Статус-бейдж ───────────────────────────────────────
+function showBadge(text, type) {
+    badgeStatus.textContent = text;
+    badgeStatus.className = 'status-badge ' + type;
+    badgeStatus.style.display = 'inline-block';
+}
+
+// ── Добавление сообщений в чат ─────────────────────────
+function clearWelcome() {
+    if (welcome) welcome.style.display = 'none';
+}
+
+function addMsg(label, labelClass, bodyHtml, bodyClass, metaHtml) {
+    clearWelcome();
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.innerHTML =
+        `<div class="msg-label ${labelClass}">${label}</div>` +
+        `<div class="msg-body ${bodyClass || ''}">${bodyHtml}</div>` +
+        (metaHtml ? `<div class="msg-meta">${metaHtml}</div>` : '');
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return div;
+}
+
+function addLoading(text) {
+    clearWelcome();
+    const div = document.createElement('div');
+    div.className = 'msg loading-msg';
+    div.innerHTML =
+        `<div class="loading"><span class="spinner"></span>${text}</div>`;
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return div;
+}
+
+function removeEl(el) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+// ── Скачивание дайджеста ───────────────────────────────
+function downloadDigest(markdown, dateStr) {
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `digest_${dateStr}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ── Генерация дайджеста ────────────────────────────────
+let lastDigestMarkdown = '';
+let lastDigestDate = '';
+
+async function doGenerate() {
+    if (busy) return;
+
+    const dateVal = inpDate.value;
+    const provider = selProvider.value;
+
+    if (!dateVal) {
+        addMsg('Ошибка', 'error', 'Выберите дату', 'error-body');
+        return;
+    }
+
+    setLoading(true);
+    showBadge('Генерация...', 'warn');
+
+    const loader = addLoading(
+        'Загрузка данных из 1С, агрегация, отправка в LLM... Это займёт 15–60 секунд.'
+    );
+
+    try {
+        const r = await fetch('/api/digest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: dateVal, provider }),
+        });
+
+        const data = await r.json();
+        removeEl(loader);
+
+        if (data.status === 'ok') {
+            lastDigestMarkdown = data.digest;
+            lastDigestDate = data.date;
+
+            const html = marked.parse(data.digest);
+            const meta = [
+                data.generated_at,
+                data.provider,
+                data.anonymized ? 'анонимизирован' : '',
+            ].filter(Boolean).join(' · ');
+
+            addMsg(
+                'Дайджест — ' + data.date,
+                'ai',
+                html,
+                'digest-body',
+                `<span>${meta}</span>` +
+                `<a class="download-link" onclick="downloadDigest(lastDigestMarkdown, lastDigestDate)">` +
+                `<i class="bi bi-download"></i> Скачать .md</a>`
+            );
+
+            showBadge('Готово', 'ok');
+            enableQA();
+        } else {
+            addMsg('Ошибка', 'error', data.message || 'Неизвестная ошибка', 'error-body');
+            showBadge('Ошибка', 'err');
+        }
+    } catch (e) {
+        removeEl(loader);
+        addMsg('Ошибка', 'error',
+            'Сервис дайджеста недоступен. Убедитесь что он запущен на порту 8002.',
+            'error-body');
+        showBadge('Недоступен', 'err');
+    }
+
+    setLoading(false);
+}
+
+// ── Вопросы по данным ──────────────────────────────────
+async function doAsk() {
+    if (busy || !digestReady) return;
+
+    const question = inpQuestion.value.trim();
+    if (!question) return;
+
+    const provider = selProvider.value;
+    inpQuestion.value = '';
+
+    setLoading(true);
+
+    addMsg('Вы', 'user', escapeHtml(question));
+
+    const loader = addLoading('Анализ данных...');
+
+    try {
+        const r = await fetch('/api/digest/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, provider }),
+        });
+
+        const data = await r.json();
+        removeEl(loader);
+
+        if (data.status === 'ok') {
+            const html = marked.parse(data.answer);
+            const ageMins = data.context_age_minutes;
+            const ageText = ageMins !== undefined
+                ? `Данные: ${ageMins} мин. назад`
+                : '';
+            addMsg('Ответ', 'ai', html, '', ageText ? `<span>${ageText}</span>` : '');
+        } else {
+            addMsg('Ошибка', 'error', data.message || 'Не удалось получить ответ', 'error-body');
+        }
+    } catch {
+        removeEl(loader);
+        addMsg('Ошибка', 'error',
+            'Сервис дайджеста недоступен.',
+            'error-body');
+    }
+
+    setLoading(false);
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Блок: Шапки расходных накладных (вспомогательный)
+# Используется блоком sales_items для получения даты
+# Сам по себе в дайджест НЕ попадает
+
+id: sales_headers
+name: "Шапки накладных"
+enabled: true
+priority: null              # вспомогательный блок
+
+source:
+  entity: "Document_РасходнаяНакладная"
+  type: document
+  fields:
+    - Ref_Key
+    - Date
+    - Контрагент_Key
+    - СуммаДокумента
+    - Posted
+  filter: "Posted eq true"
+  orderby: "Date desc"
+  period: 90d
+
+resolve: []
+mask: []
+
+aggregation:
+  type: none
+
+template: null
+hide_if_empty: true
+depends_on: []

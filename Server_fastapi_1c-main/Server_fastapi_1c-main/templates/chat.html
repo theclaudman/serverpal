@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ИИ-ассистент — Сервисы 1С</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-body:      #0f0f1a;
+            --bg-card:      rgba(255,255,255,0.03);
+            --bg-secondary: rgba(255,255,255,0.05);
+            --bg-user:      rgba(74,222,128,0.12);
+            --bg-ai:        rgba(255,255,255,0.05);
+            --text-primary: #e4e4e4;
+            --text-muted:   #888;
+            --border-color: rgba(255,255,255,0.05);
+            --border-light: rgba(255,255,255,0.08);
+            --accent-green: #4ade80;
+            --accent-purple:#a78bfa;
+            --primary-gradient: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-body);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Шапка ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 20px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .topbar-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.88em;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+        .topbar-back:hover { color: var(--text-primary); border-color: var(--border-light); }
+        .topbar-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 1.05em;
+        }
+        .topbar-icon {
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            background: rgba(167,139,250,0.15);
+            color: var(--accent-purple);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1em;
+        }
+        .topbar-subtitle {
+            font-size: 0.78em;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* ── Лента сообщений ── */
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 860px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .messages::-webkit-scrollbar { width: 5px; }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        /* ── Пустое состояние ── */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px;
+        }
+        .empty-state .big-icon {
+            font-size: 3em;
+            color: var(--accent-purple);
+            opacity: 0.6;
+        }
+        .empty-state p { font-size: 0.95em; max-width: 360px; line-height: 1.6; }
+
+        /* ── Сообщение ── */
+        .msg {
+            display: flex;
+            gap: 12px;
+            max-width: 78%;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg.ai   { align-self: flex-start; }
+
+        .msg-avatar {
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.95em;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .msg.user .msg-avatar { background: rgba(74,222,128,0.15); color: var(--accent-green); }
+        .msg.ai   .msg-avatar { background: rgba(167,139,250,0.15); color: var(--accent-purple); }
+
+        .msg-bubble {
+            padding: 12px 16px;
+            border-radius: 14px;
+            line-height: 1.6;
+            font-size: 0.92em;
+            word-break: break-word;
+        }
+        .msg.user .msg-bubble {
+            background: var(--bg-user);
+            border: 1px solid rgba(74,222,128,0.15);
+            border-bottom-right-radius: 4px;
+        }
+        .msg.ai .msg-bubble {
+            background: var(--bg-ai);
+            border: 1px solid var(--border-light);
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Markdown внутри пузырей */
+        .msg-bubble h1,.msg-bubble h2,.msg-bubble h3 {
+            margin: 10px 0 6px; font-size: 1em; font-weight: 700;
+        }
+        .msg-bubble p { margin: 0 0 6px; }
+        .msg-bubble p:last-child { margin-bottom: 0; }
+        .msg-bubble ul,.msg-bubble ol { margin: 4px 0 6px 18px; }
+        .msg-bubble li { margin-bottom: 2px; }
+        .msg-bubble code {
+            background: rgba(255,255,255,0.08);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .msg-bubble pre {
+            background: rgba(0,0,0,0.35);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 10px 14px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        .msg-bubble pre code { background: none; padding: 0; }
+        .msg-bubble strong { color: var(--text-primary); }
+
+        /* ── Индикатор печатания ── */
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            align-items: center;
+            gap: 12px;
+        }
+        .typing-indicator.visible { display: flex; }
+        .typing-dots {
+            display: flex; gap: 5px;
+            background: var(--bg-ai);
+            border: 1px solid var(--border-light);
+            border-radius: 14px;
+            border-bottom-left-radius: 4px;
+            padding: 12px 16px;
+        }
+        .typing-dots span {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+            opacity: 0.4;
+            animation: dot-pulse 1.2s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dot-pulse {
+            0%,80%,100% { opacity: 0.4; transform: scale(1); }
+            40%          { opacity: 1;   transform: scale(1.3); }
+        }
+
+        /* ── Панель ввода ── */
+        .input-bar {
+            flex-shrink: 0;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+        }
+        .input-inner {
+            max-width: 860px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95em;
+            line-height: 1.5;
+            resize: none;
+            min-height: 48px;
+            max-height: 180px;
+            overflow-y: auto;
+            transition: border-color 0.2s;
+        }
+        textarea::placeholder { color: var(--text-muted); }
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 3px rgba(167,139,250,0.1);
+        }
+        .btn-send {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            background: var(--primary-gradient);
+            border: none;
+            color: #000;
+            font-size: 1.1em;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .btn-send:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(74,222,128,0.3); }
+        .btn-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .input-hint {
+            text-align: center;
+            font-size: 0.75em;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Шапка -->
+    <div class="topbar">
+        <a href="/" class="topbar-back"><i class="bi bi-arrow-left"></i> Назад</a>
+        <div class="topbar-title">
+            <div class="topbar-icon"><i class="bi bi-stars"></i></div>
+            <div>
+                ИИ-ассистент
+                <div class="topbar-subtitle">GigaChat · 1C AI Bridge</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Лента сообщений -->
+    <div class="messages" id="messages">
+        <div class="empty-state" id="emptyState">
+            <div class="big-icon"><i class="bi bi-chat-dots"></i></div>
+            <p>Задайте вопрос по вашей базе 1С — ИИ-ассистент ответит на основе ваших данных.</p>
+        </div>
+
+        <!-- Индикатор печатания (вставляется в конец ленты) -->
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="msg-avatar" style="background:rgba(167,139,250,0.15);color:var(--accent-purple);">
+                <i class="bi bi-stars"></i>
+            </div>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Поле ввода -->
+    <div class="input-bar">
+        <div class="input-inner">
+            <div class="input-wrapper">
+                <textarea
+                    id="promptInput"
+                    placeholder="Напишите вопрос... (Enter — отправить, Shift+Enter — перенос строки)"
+                    rows="1"
+                ></textarea>
+            </div>
+            <button class="btn-send" id="sendBtn" title="Отправить">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+        <div class="input-hint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — перенос строки</div>
+    </div>
+
+<script>
+    const messagesEl    = document.getElementById('messages');
+    const typingEl      = document.getElementById('typingIndicator');
+    const emptyStateEl  = document.getElementById('emptyState');
+    const inputEl       = document.getElementById('promptInput');
+    const sendBtn       = document.getElementById('sendBtn');
+
+    // Автовысота textarea
+    inputEl.addEventListener('input', () => {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 180) + 'px';
+    });
+
+    // Enter — отправить, Shift+Enter — перенос
+    inputEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    function appendMessage(role, html) {
+        if (emptyStateEl) emptyStateEl.remove();
+
+        const isUser = role === 'user';
+        const msg = document.createElement('div');
+        msg.className = `msg ${role}`;
+        msg.innerHTML = `
+            <div class="msg-avatar">
+                <i class="bi bi-${isUser ? 'person-fill' : 'stars'}"></i>
+            </div>
+            <div class="msg-bubble">${html}</div>
+        `;
+        // Вставить перед индикатором печатания
+        messagesEl.insertBefore(msg, typingEl);
+        scrollToBottom();
+    }
+
+    function setTyping(visible) {
+        typingEl.classList.toggle('visible', visible);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    async function sendMessage() {
+        const prompt = inputEl.value.trim();
+        if (!prompt || sendBtn.disabled) return;
+
+        // Показываем сообщение пользователя
+        appendMessage('user', `<p>${escapeHtml(prompt)}</p>`);
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+
+        sendBtn.disabled = true;
+        setTyping(true);
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt }),
+            });
+            const data = await res.json();
+
+            setTyping(false);
+
+            if (!res.ok || data.error) {
+                appendMessage('ai', `<p style="color:#f87171;"><i class="bi bi-exclamation-circle"></i> Ошибка: ${escapeHtml(data.error || 'неизвестная ошибка')}</p>`);
+            } else {
+                appendMessage('ai', marked.parse(data.answer));
+            }
+        } catch (err) {
+            setTyping(false);
+            appendMessage('ai', `<p style="color:#f87171;"><i class="bi bi-exclamation-circle"></i> Не удалось подключиться к сервису.</p>`);
+        } finally {
+            sendBtn.disabled = false;
+            inputEl.focus();
+        }
+    }
+</script>
+
+</body>
+</html>

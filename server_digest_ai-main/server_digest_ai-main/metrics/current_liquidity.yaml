@@ -1,0 +1,23 @@
+# Метрика: Коэффициент текущей ликвидности
+# Формула: деньги / кредиторка
+# Если < 1 — денег меньше чем долгов поставщикам
+
+id: current_liquidity
+name: "Текущая ликвидность"
+enabled: true
+
+formula:
+  op: divide
+  a:
+    block: money
+    value: total
+  b:
+    block: creditors
+    value: total
+
+format: "Текущая ликвидность: {result:.2f} (деньги {a_fmt} / кредиторка {b_fmt})"
+
+warning:
+  condition: below
+  threshold: 1.0
+  text: "⚠️ Ликвидность ниже 1 — денег меньше чем долгов поставщикам"

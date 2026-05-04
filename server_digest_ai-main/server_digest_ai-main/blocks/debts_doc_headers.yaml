@@ -1,0 +1,24 @@
+id: debts_doc_headers
+name: "Шапки накладных дебиторки"
+enabled: true
+priority: null
+
+source:
+  entity: "Document_РасходнаяНакладная"
+  type: document
+  fields:
+    - Ref_Key
+    - Date
+    - Number
+    - Posted
+  filter: "Posted eq true"
+  orderby: null
+  period: none
+
+resolve: []
+mask: []
+aggregation:
+  type: none
+template: null
+hide_if_empty: true
+depends_on: []

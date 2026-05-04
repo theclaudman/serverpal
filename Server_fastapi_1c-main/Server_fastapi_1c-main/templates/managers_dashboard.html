@@ -1,0 +1,874 @@
+
+
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд менеджеров — /*@@PERIOD_TITLE@@*/</title>
+
+
+<style>
+/* Managers Dashboard styles - prefixed with md- to avoid conflicts */
+.md-container { max-width: 1000px; margin: 0 auto; }
+
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a;
+    color: #e4e4e4;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+
+.md-header { text-align: center; margin-bottom: 25px; }
+.md-header h1 { font-size: 26px; color: #fff; margin-bottom: 8px; }
+.md-header .md-subtitle { color: #888; font-size: 14px; }
+
+.md-filter-section {
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.md-filter-row { display: flex; gap: 15px; flex-wrap: wrap; }
+.md-filter-group { flex: 1; min-width: 200px; }
+.md-filter-label { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 6px; }
+.md-filter-input, .md-filter-select {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+}
+.md-filter-input:focus, .md-filter-select:focus { outline: none; border-color: #4ade80; }
+.md-apply-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+.md-apply-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(74,222,128,0.4); }
+
+.md-summary-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 25px;
+}
+.md-summary-card {
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 197, 94, 0.05));
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+}
+.md-summary-card.blue {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.1), rgba(59, 130, 246, 0.05));
+    border-color: rgba(96, 165, 250, 0.2);
+}
+.md-summary-card.orange {
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.1), rgba(249, 115, 22, 0.05));
+    border-color: rgba(251, 146, 60, 0.2);
+}
+.md-summary-card.red {
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.1), rgba(239, 68, 68, 0.05));
+    border-color: rgba(248, 113, 113, 0.2);
+}
+.md-summary-card.purple {
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(139, 92, 246, 0.05));
+    border-color: rgba(167, 139, 250, 0.2);
+}
+.md-summary-card.green {
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.1), rgba(16, 185, 129, 0.05));
+    border-color: rgba(52, 211, 153, 0.2);
+}
+.md-summary-card .md-icon { font-size: 24px; margin-bottom: 8px; }
+.md-summary-card .md-value { font-size: 18px; font-weight: 700; color: #fff; white-space: nowrap; }
+.md-summary-card .md-label { font-size: 11px; color: #888; margin-top: 4px; }
+
+.md-section {
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.md-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.md-rankings-grid {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-snap-type: x mandatory;
+}
+.md-rankings-grid::-webkit-scrollbar { height: 6px; }
+.md-rankings-grid::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+.md-rankings-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.md-ranking-column {
+    min-width: 280px;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+}
+.md-ranking-column-title { font-size: 13px; color: #888; margin-bottom: 10px; }
+.md-ranking-list { list-style: none; padding: 0; margin: 0; }
+.md-ranking-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+.md-ranking-item:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(74, 222, 128, 0.3);
+    transform: translateX(3px);
+}
+.md-ranking-item.selected {
+    background: rgba(74, 222, 128, 0.1);
+    border-color: #4ade80;
+}
+.md-rank {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 7px;
+    font-weight: 700; font-size: 12px;
+}
+.md-rank.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; }
+.md-rank.silver { background: linear-gradient(135deg, #94a3b8, #64748b); color: #000; }
+.md-rank.bronze { background: linear-gradient(135deg, #fb923c, #ea580c); color: #000; }
+.md-rank.normal { background: rgba(255,255,255,0.1); color: #888; }
+.md-ranking-info { flex: 1; }
+.md-ranking-name { font-weight: 500; color: #fff; font-size: 14px; }
+.md-ranking-detail { font-size: 11px; color: #666; margin-top: 2px; }
+.md-ranking-value { font-weight: 700; font-size: 15px; }
+.md-ranking-value.green { color: #4ade80; }
+.md-ranking-value.blue { color: #60a5fa; }
+.md-ranking-value.purple { color: #a78bfa; }
+.md-ranking-value.red { color: #f87171; }
+.md-drill-icon { color: #555; font-size: 12px; }
+
+.md-drill-panel {
+    display: none;
+    background: rgba(0,0,0,0.4);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    animation: md-slideDown 0.2s ease;
+}
+.md-drill-panel.active { display: block; }
+@keyframes md-slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.md-drill-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.md-drill-title { font-size: 18px; font-weight: 600; color: #fff; }
+.md-drill-close {
+    background: none; border: none;
+    color: #888; font-size: 20px;
+    cursor: pointer; padding: 5px 10px; border-radius: 5px;
+}
+.md-drill-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+.md-drill-metrics {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.md-drill-metric {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+}
+.md-drill-metric .md-icon { font-size: 20px; margin-bottom: 5px; }
+.md-drill-metric .md-value { font-size: 20px; font-weight: 700; color: #fff; }
+.md-drill-metric .md-label { font-size: 11px; color: #666; margin-top: 3px; }
+.md-drill-metric.highlight {
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+}
+.md-drill-metric.danger {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.md-drill-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 10px;
+}
+.md-drill-tab {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.05);
+    border: none;
+    border-radius: 8px;
+    color: #888;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+.md-drill-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.md-drill-tab.active {
+    background: rgba(74, 222, 128, 0.2);
+    color: #4ade80;
+}
+.md-drill-tab .md-count {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-left: 5px;
+}
+.md-drill-tab.active .md-count {
+    background: rgba(74, 222, 128, 0.3);
+}
+
+.md-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.md-detail-table th, .md-detail-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.md-detail-table th {
+    color: #888;
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+.md-detail-table td { font-size: 13px; }
+.md-detail-table tr:hover { background: rgba(255,255,255,0.03); }
+.md-detail-table .md-amount { text-align: right; font-weight: 600; color: #4ade80; }
+.md-detail-table .md-debt { color: #f87171; }
+.md-detail-table .md-status-paid { color: #4ade80; }
+.md-detail-table .md-status-partial { color: #fbbf24; }
+.md-detail-table .md-status-unpaid { color: #f87171; }
+
+.md-detail-content { display: none; max-height: 400px; overflow-y: auto; overflow-x: auto; }
+.md-detail-content.active { display: block; }
+.md-detail-table { min-width: 500px; }
+.md-detail-empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+
+.md-alerts { display: flex; flex-direction: column; gap: 10px; }
+.md-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    border-radius: 10px;
+    background: rgba(248, 113, 113, 0.1);
+    border-left: 4px solid #f87171;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.md-alert:hover {
+    background: rgba(248, 113, 113, 0.15);
+    transform: translateX(3px);
+}
+.md-alert-icon { font-size: 22px; }
+.md-alert-content { flex: 1; }
+.md-alert-title { font-weight: 600; color: #fff; font-size: 14px; }
+.md-alert-desc { font-size: 11px; color: #888; margin-top: 2px; }
+.md-alert-value { font-weight: 700; color: #f87171; font-size: 16px; }
+
+.md-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+.md-footer-info { color: #555; font-size: 12px; }
+
+.md-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    color: #888;
+}
+.md-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4ade80;
+    border-radius: 50%;
+    animation: md-spin 1s linear infinite;
+    margin-right: 15px;
+}
+@keyframes md-spin {
+    to { transform: rotate(360deg); }
+}
+
+.md-error {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    color: #f87171;
+}
+
+@media (max-width: 768px) {
+    .md-summary-row { grid-template-columns: repeat(3, 1fr); }
+    .md-drill-metrics { grid-template-columns: repeat(3, 1fr); }
+    .md-filter-row { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+    .md-summary-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .md-drill-metrics { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .md-summary-card { padding: 12px; }
+    .md-summary-card .md-value { font-size: 16px; }
+    .md-summary-card .md-icon { font-size: 20px; }
+    .md-ranking-column { min-width: 250px; }
+    .md-drill-panel { padding: 15px; }
+}
+</style>
+
+
+</head>
+<body>
+
+
+<div class="md-container" id="mdContainer">
+    <!-- Header (только для standalone) -->
+    
+    <div class="md-header" style="position:relative;">
+        <a href="/" style="position:absolute;top:0;left:0;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#888;font-size:0.85em;text-decoration:none;transition:all 0.2s ease;" onmouseover="this.style.color='#e4e4e4';this.style.borderColor='rgba(255,255,255,0.2)'" onmouseout="this.style.color='#888';this.style.borderColor='rgba(255,255,255,0.08)'">← Главная</a>
+        <h1>👥 Дашборд менеджеров</h1>
+        <div class="md-subtitle">Период: /*@@PERIOD_SUBTITLE@@*/</div>
+    </div>
+    
+
+    <!-- Loading state (для API режима) -->
+    <div class="md-loading" id="mdLoading" style="display: none;">
+        <div class="md-loading-spinner"></div>
+        <span>Загрузка данных...</span>
+    </div>
+
+    <!-- Error state -->
+    <div class="md-error" id="mdError" style="display: none;"></div>
+
+    <!-- Main content -->
+    <div id="mdContent" style="">
+        <!-- Filter section -->
+        <div class="md-filter-section">
+            <div class="md-filter-row">
+                <div class="md-filter-group">
+                    <div class="md-filter-label">📅 Начало периода</div>
+                    <input type="date" class="md-filter-input" id="mdStartDate" value="/*@@START_DATE@@*/">
+                </div>
+                <div class="md-filter-group">
+                    <div class="md-filter-label">📅 Конец периода</div>
+                    <input type="date" class="md-filter-input" id="mdEndDate" value="/*@@END_DATE@@*/">
+                </div>
+                <div class="md-filter-group" style="display:flex;align-items:flex-end;">
+                    <button class="md-apply-btn" id="mdApplyDates">Применить</button>
+                </div>
+            </div>
+            <div class="md-filter-row" style="margin-top:12px;">
+                <div class="md-filter-group">
+                    <div class="md-filter-label">🔍 Поиск менеджера</div>
+                    <input type="text" class="md-filter-input" placeholder="Введите имя..." id="mdManagerSearch">
+                </div>
+                <div class="md-filter-group">
+                    <div class="md-filter-label">👤 Выбор менеджера</div>
+                    <select class="md-filter-select" id="mdManagerSelect">
+                        <option value="">Все менеджеры</option>
+                        <!-- Options будут добавлены динамически -->
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="md-summary-row">
+            <div class="md-summary-card">
+                <div class="md-icon">💰</div>
+                <div class="md-value" id="mdTotalRevenue">0</div>
+                <div class="md-label">Выручка</div>
+            </div>
+            <div class="md-summary-card blue">
+                <div class="md-icon">📈</div>
+                <div class="md-value" id="mdTotalProfit">0</div>
+                <div class="md-label">Прибыль</div>
+            </div>
+            <div class="md-summary-card orange">
+                <div class="md-icon">📦</div>
+                <div class="md-value" id="mdTotalOrders">0</div>
+                <div class="md-label">Заказов</div>
+            </div>
+            <div class="md-summary-card purple">
+                <div class="md-icon">📞</div>
+                <div class="md-value" id="mdTotalEvents">0</div>
+                <div class="md-label">Событий</div>
+            </div>
+            <div class="md-summary-card green">
+                <div class="md-icon">💵</div>
+                <div class="md-value" id="mdTotalPayments">0</div>
+                <div class="md-label">Оплат</div>
+            </div>
+            <div class="md-summary-card red">
+                <div class="md-icon">⚠️</div>
+                <div class="md-value" id="mdTotalDebt">0</div>
+                <div class="md-label">Долг</div>
+            </div>
+        </div>
+
+        <!-- Rankings section -->
+        <div class="md-section">
+            <div class="md-section-title">🏆 Рейтинги <span style="color: #666; font-weight: 400; font-size: 12px;">— скролльте вправо →</span></div>
+            <div class="md-rankings-grid">
+                <div class="md-ranking-column">
+                    <div class="md-ranking-column-title">💰 По выручке</div>
+                    <ul class="md-ranking-list" id="mdRankingRevenue"></ul>
+                </div>
+                <div class="md-ranking-column">
+                    <div class="md-ranking-column-title">📦 По заказам</div>
+                    <ul class="md-ranking-list" id="mdRankingOrders"></ul>
+                </div>
+                <div class="md-ranking-column" id="mdRankingEventsColumn" style="display: none;">
+                    <div class="md-ranking-column-title">📞 По событиям</div>
+                    <ul class="md-ranking-list" id="mdRankingEvents"></ul>
+                </div>
+                <div class="md-ranking-column">
+                    <div class="md-ranking-column-title">⚠️ По долгам</div>
+                    <ul class="md-ranking-list" id="mdRankingDebt"></ul>
+                </div>
+            </div>
+
+            <!-- Drill-down panel -->
+            <div class="md-drill-panel" id="mdDrillPanel">
+                <div class="md-drill-header">
+                    <div class="md-drill-title" id="mdDrillTitle"></div>
+                    <button class="md-drill-close" onclick="mdCloseDrill()">✕</button>
+                </div>
+                <div class="md-drill-metrics" id="mdDrillMetrics"></div>
+                <div class="md-drill-tabs" id="mdDrillTabs">
+                    <button class="md-drill-tab active" data-tab="sales" onclick="mdSwitchTab('sales')">💰 Продажи <span class="md-count" id="mdCountSales">0</span></button>
+                    <button class="md-drill-tab" data-tab="orders" onclick="mdSwitchTab('orders')">📦 Заказы <span class="md-count" id="mdCountOrders">0</span></button>
+                    <button class="md-drill-tab" data-tab="events" onclick="mdSwitchTab('events')">📞 События <span class="md-count" id="mdCountEvents">0</span></button>
+                    <button class="md-drill-tab" data-tab="debts" onclick="mdSwitchTab('debts')">⚠️ Долги <span class="md-count" id="mdCountDebts">0</span></button>
+                </div>
+                <div class="md-detail-content active" id="mdTabSales"></div>
+                <div class="md-detail-content" id="mdTabOrders"></div>
+                <div class="md-detail-content" id="mdTabEvents"></div>
+                <div class="md-detail-content" id="mdTabDebts"></div>
+            </div>
+        </div>
+
+        <!-- Alerts section -->
+        <div class="md-section" id="mdAlertsSection" style="display: none;">
+            <div class="md-section-title">🚨 Требуют внимания</div>
+            <div class="md-alerts" id="mdAlerts"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="md-footer">
+            <div class="md-footer-info" id="mdFooterInfo">Всего менеджеров: 0</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // Configuration
+    const MD_CONFIG = {
+        managersData: /*@@MANAGERS_DATA@@*/[],
+        totals: /*@@TOTALS_DATA@@*/[],
+        apiMode: false,  // ← вот это важно
+        apiUrl: "/dashboard/managers"
+    };
+
+    // Global state
+    let mdManagersData = MD_CONFIG.managersData || [];
+    let mdTotals = MD_CONFIG.totals || {};
+
+    // Helper functions
+    function mdFmtAmount(val) {
+        if (!val || val === 0) return '0';
+        return Math.round(val).toLocaleString('ru-RU');
+    }
+
+    function mdFmtDate(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return parts[2] + '.' + parts[1] + '.' + parts[0];
+        return dateStr;
+    }
+
+    function mdStatusClass(status) {
+        if (status === 'paid') return 'md-status-paid';
+        if (status === 'partial') return 'md-status-partial';
+        return 'md-status-unpaid';
+    }
+
+    function mdStatusText(status) {
+        if (status === 'paid') return '✓ Оплачен';
+        if (status === 'partial') return '◐ Частично';
+        return '○ Не оплачен';
+    }
+
+    // Render functions
+    function mdRenderSalesTable(details) {
+        if (!details || details.length === 0) return '<div class="md-detail-empty">Нет данных о продажах</div>';
+        let html = '<table class="md-detail-table"><thead><tr><th>Контрагент</th><th style="text-align:right">Сумма</th><th style="text-align:right">Прибыль</th></tr></thead><tbody>';
+        for (const d of details) {
+            html += `<tr><td>${d.contragent || '—'}</td><td class="md-amount">${mdFmtAmount(d.sum)}</td><td class="md-amount">${mdFmtAmount(d.profit)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function mdRenderOrdersTable(details) {
+        if (!details || details.length === 0) return '<div class="md-detail-empty">Нет данных о заказах</div>';
+        let html = '<table class="md-detail-table"><thead><tr><th>№</th><th>Дата</th><th>Контрагент</th><th style="text-align:right">Сумма</th><th>Статус</th></tr></thead><tbody>';
+        for (const d of details) {
+            html += `<tr><td>${d.number || '—'}</td><td>${mdFmtDate(d.date)}</td><td>${d.contragent || '—'}</td><td class="md-amount">${mdFmtAmount(d.sum)}</td><td class="${mdStatusClass(d.status)}">${mdStatusText(d.status)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function mdRenderEventsTable(details) {
+        if (!details || details.length === 0) return '<div class="md-detail-empty">Нет данных о событиях</div>';
+        let html = '<table class="md-detail-table"><thead><tr><th>Тип</th><th>Дата</th><th>Контрагент</th><th>Комментарий</th></tr></thead><tbody>';
+        for (const d of details) {
+            html += `<tr><td>${d.type || '—'}</td><td>${mdFmtDate(d.date)}</td><td>${d.contragent || '—'}</td><td>${d.comment || '—'}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function mdRenderDebtsTable(details) {
+        if (!details || details.length === 0) return '<div class="md-detail-empty">Нет данных о долгах</div>';
+        let html = '<table class="md-detail-table"><thead><tr><th>Контрагент</th><th style="text-align:right">Долг</th></tr></thead><tbody>';
+        for (const d of details) {
+            html += `<tr><td>${d.contragent || '—'}</td><td class="md-amount md-debt">${mdFmtAmount(d.debt)}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        return html;
+    }
+
+    function mdRenderRankingItem(m, idx, rank, metric, valueClass) {
+        const rankClass = rank <= 3 ? ['', 'gold', 'silver', 'bronze'][rank] : 'normal';
+        let detail = '';
+        let value = '';
+
+        if (metric === 'revenue') {
+            const margin = m.revenue > 0 ? Math.round(m.profit / m.revenue * 100) : 0;
+            detail = `Маржа ${margin}%`;
+            value = mdFmtAmount(m.revenue);
+        } else if (metric === 'orders') {
+            detail = `На сумму ${mdFmtAmount(m.orders_sum)}`;
+            value = m.orders + ' зак';
+        } else if (metric === 'events') {
+            detail = `Звонков: ${m.events_calls || 0}`;
+            value = m.events;
+        } else if (metric === 'debt') {
+            detail = `Должников: ${m.debtors_count || 0}`;
+            value = mdFmtAmount(m.debt);
+        }
+
+        return `
+            <li class="md-ranking-item" onclick="mdShowDrill(${idx})">
+                <div class="md-rank ${rankClass}">${rank}</div>
+                <div class="md-ranking-info">
+                    <div class="md-ranking-name">${m.name}</div>
+                    <div class="md-ranking-detail">${detail}</div>
+                </div>
+                <div class="md-ranking-value ${valueClass}">${value}</div>
+                <div class="md-drill-icon">→</div>
+            </li>
+        `;
+    }
+
+    function mdRenderAlert(m, idx) {
+        return `
+            <div class="md-alert" onclick="mdShowDrill(${idx})">
+                <div class="md-alert-icon">💸</div>
+                <div class="md-alert-content">
+                    <div class="md-alert-title">${m.name}</div>
+                    <div class="md-alert-desc">Высокий уровень дебиторки</div>
+                </div>
+                <div class="md-alert-value">${mdFmtAmount(m.debt)}</div>
+            </div>
+        `;
+    }
+
+    // Main render function
+    function mdRenderDashboard() {
+        if (!mdManagersData || mdManagersData.length === 0) {
+            document.getElementById('mdContent').innerHTML = '<div class="md-error">Нет данных о менеджерах за выбранный период</div>';
+            return;
+        }
+
+        // Update totals
+        const totals = mdTotals || {};
+        document.getElementById('mdTotalRevenue').textContent = mdFmtAmount(totals.revenue || mdManagersData.reduce((s, m) => s + (m.revenue || 0), 0));
+        document.getElementById('mdTotalProfit').textContent = mdFmtAmount(totals.profit || mdManagersData.reduce((s, m) => s + (m.profit || 0), 0));
+        document.getElementById('mdTotalOrders').textContent = totals.orders || mdManagersData.reduce((s, m) => s + (m.orders || 0), 0);
+        document.getElementById('mdTotalEvents').textContent = totals.events || mdManagersData.reduce((s, m) => s + (m.events || 0), 0);
+        document.getElementById('mdTotalPayments').textContent = mdFmtAmount(totals.payments || mdManagersData.reduce((s, m) => s + (m.payments || 0), 0));
+        document.getElementById('mdTotalDebt').textContent = mdFmtAmount(totals.debt || mdManagersData.reduce((s, m) => s + (m.debt || 0), 0));
+
+        // Update manager select options
+        const select = document.getElementById('mdManagerSelect');
+        select.innerHTML = '<option value="">Все менеджеры</option>';
+        mdManagersData.forEach((m, i) => {
+            select.innerHTML += `<option value="${i}">${m.name}</option>`;
+        });
+
+        // Sort and render rankings
+        const byRevenue = [...mdManagersData].sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
+        const byOrders = [...mdManagersData].sort((a, b) => (b.orders || 0) - (a.orders || 0));
+        const byEvents = [...mdManagersData].sort((a, b) => (b.events || 0) - (a.events || 0));
+        const byDebt = [...mdManagersData].sort((a, b) => (b.debt || 0) - (a.debt || 0));
+
+        // Revenue ranking
+        let revenueHtml = '';
+        byRevenue.slice(0, 3).forEach((m, i) => {
+            const origIdx = mdManagersData.findIndex(x => x.id === m.id);
+            revenueHtml += mdRenderRankingItem(m, origIdx, i + 1, 'revenue', 'green');
+        });
+        document.getElementById('mdRankingRevenue').innerHTML = revenueHtml || '<li style="color: #666;">Нет продаж</li>';
+
+        // Orders ranking
+        let ordersHtml = '';
+        byOrders.filter(m => m.orders > 0).slice(0, 3).forEach((m, i) => {
+            const origIdx = mdManagersData.findIndex(x => x.id === m.id);
+            ordersHtml += mdRenderRankingItem(m, origIdx, i + 1, 'orders', 'blue');
+        });
+        document.getElementById('mdRankingOrders').innerHTML = ordersHtml || '<li style="color: #666;">Нет заказов</li>';
+
+        // Events ranking
+        const eventsWithData = byEvents.filter(m => m.events > 0);
+        if (eventsWithData.length > 0) {
+            let eventsHtml = '';
+            eventsWithData.slice(0, 3).forEach((m, i) => {
+                const origIdx = mdManagersData.findIndex(x => x.id === m.id);
+                eventsHtml += mdRenderRankingItem(m, origIdx, i + 1, 'events', 'purple');
+            });
+            document.getElementById('mdRankingEvents').innerHTML = eventsHtml;
+            document.getElementById('mdRankingEventsColumn').style.display = 'block';
+        } else {
+            document.getElementById('mdRankingEventsColumn').style.display = 'none';
+        }
+
+        // Debt ranking
+        let debtHtml = '';
+        byDebt.filter(m => m.debt > 0).slice(0, 3).forEach((m, i) => {
+            const origIdx = mdManagersData.findIndex(x => x.id === m.id);
+            debtHtml += mdRenderRankingItem(m, origIdx, i + 1, 'debt', 'red');
+        });
+        document.getElementById('mdRankingDebt').innerHTML = debtHtml || '<li style="color: #666;">Нет долгов</li>';
+
+        // Alerts (managers with high debt)
+        const alertManagers = byDebt.filter(m => m.debt > 0).slice(0, 3);
+        if (alertManagers.length > 0) {
+            let alertsHtml = '';
+            alertManagers.forEach(m => {
+                const origIdx = mdManagersData.findIndex(x => x.id === m.id);
+                alertsHtml += mdRenderAlert(m, origIdx);
+            });
+            document.getElementById('mdAlerts').innerHTML = alertsHtml;
+            document.getElementById('mdAlertsSection').style.display = 'block';
+        } else {
+            document.getElementById('mdAlertsSection').style.display = 'none';
+        }
+
+        // Footer
+        document.getElementById('mdFooterInfo').textContent = `Всего менеджеров: ${mdManagersData.length}`;
+    }
+
+    // Drill-down functions (global scope)
+    window.mdShowDrill = function(idx) {
+        const m = mdManagersData[idx];
+        if (!m) return;
+
+        document.getElementById('mdDrillTitle').textContent = m.full_name || m.name;
+
+        const metricsHtml = `
+            <div class="md-drill-metric ${m.revenue > 0 ? 'highlight' : ''}">
+                <div class="md-icon">💰</div>
+                <div class="md-value">${mdFmtAmount(m.revenue)}</div>
+                <div class="md-label">Выручка</div>
+            </div>
+            <div class="md-drill-metric">
+                <div class="md-icon">📈</div>
+                <div class="md-value">${mdFmtAmount(m.profit)}</div>
+                <div class="md-label">Прибыль</div>
+            </div>
+            <div class="md-drill-metric">
+                <div class="md-icon">📦</div>
+                <div class="md-value">${m.orders} / ${mdFmtAmount(m.orders_sum)}</div>
+                <div class="md-label">Заказы / Сумма</div>
+            </div>
+            <div class="md-drill-metric">
+                <div class="md-icon">📞</div>
+                <div class="md-value">${m.events}</div>
+                <div class="md-label">Событий</div>
+            </div>
+            <div class="md-drill-metric">
+                <div class="md-icon">💵</div>
+                <div class="md-value">${mdFmtAmount(m.payments)}</div>
+                <div class="md-label">Оплат</div>
+            </div>
+            <div class="md-drill-metric ${m.debt > 0 ? 'danger' : ''}">
+                <div class="md-icon">⚠️</div>
+                <div class="md-value">${mdFmtAmount(m.debt)}</div>
+                <div class="md-label">Долг</div>
+            </div>
+        `;
+        document.getElementById('mdDrillMetrics').innerHTML = metricsHtml;
+
+        // Update counts
+        document.getElementById('mdCountSales').textContent = (m.revenue_details || []).length;
+        document.getElementById('mdCountOrders').textContent = (m.orders_details || []).length;
+        document.getElementById('mdCountEvents').textContent = (m.events_details || []).length;
+        document.getElementById('mdCountDebts').textContent = (m.debt_details || []).length;
+
+        // Render tables
+        document.getElementById('mdTabSales').innerHTML = mdRenderSalesTable(m.revenue_details);
+        document.getElementById('mdTabOrders').innerHTML = mdRenderOrdersTable(m.orders_details);
+        document.getElementById('mdTabEvents').innerHTML = mdRenderEventsTable(m.events_details);
+        document.getElementById('mdTabDebts').innerHTML = mdRenderDebtsTable(m.debt_details);
+
+        // Reset to first tab
+        mdSwitchTab('sales');
+
+        document.getElementById('mdDrillPanel').classList.add('active');
+
+        document.querySelectorAll('.md-ranking-item').forEach(item => item.classList.remove('selected'));
+        if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+    };
+
+    window.mdCloseDrill = function() {
+        document.getElementById('mdDrillPanel').classList.remove('active');
+        document.querySelectorAll('.md-ranking-item').forEach(item => item.classList.remove('selected'));
+    };
+
+    window.mdSwitchTab = function(tabName) {
+        document.querySelectorAll('.md-drill-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.md-drill-tab[data-tab="${tabName}"]`).classList.add('active');
+        document.querySelectorAll('.md-detail-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('mdTab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.add('active');
+    };
+
+    // API loading function (for web mode)
+    window.mdLoadFromAPI = async function(startDate, endDate) {
+        document.getElementById('mdLoading').style.display = 'flex';
+        document.getElementById('mdContent').style.display = 'none';
+        document.getElementById('mdError').style.display = 'none';
+
+        try {
+            const url = `${MD_CONFIG.apiUrl}?start_date=${startDate}&end_date=${endDate}`;
+            const response = await fetch(url, {
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            mdManagersData = data.managers || [];
+            mdTotals = data.totals || {};
+
+            document.getElementById('mdLoading').style.display = 'none';
+            document.getElementById('mdContent').style.display = 'block';
+
+            mdRenderDashboard();
+        } catch (error) {
+            document.getElementById('mdLoading').style.display = 'none';
+            document.getElementById('mdError').style.display = 'block';
+            document.getElementById('mdError').textContent = 'Ошибка загрузки: ' + error.message;
+        }
+    };
+
+    // Event listeners
+    document.getElementById('mdManagerSelect').addEventListener('change', function() {
+        const idx = this.value;
+        if (idx !== '') mdShowDrill(parseInt(idx));
+        else mdCloseDrill();
+    });
+
+    document.getElementById('mdManagerSearch').addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        document.querySelectorAll('.md-ranking-item').forEach(item => {
+            const name = item.querySelector('.md-ranking-name').textContent.toLowerCase();
+            item.style.display = name.includes(query) ? 'flex' : 'none';
+        });
+    });
+
+    // Initial render (for TG mode)
+    if (!MD_CONFIG.apiMode && mdManagersData && mdManagersData.length > 0) {
+        mdRenderDashboard();
+    }
+
+    // Period navigation
+    document.getElementById('mdApplyDates').addEventListener('click', function() {
+        const start = document.getElementById('mdStartDate').value;
+        const end   = document.getElementById('mdEndDate').value;
+        if (start && end) {
+            window.location.href = `/dashboard/managers?start_date=${start}&end_date=${end}`;
+        }
+    });
+})();
+</script>
+
+
+</body>
+</html>

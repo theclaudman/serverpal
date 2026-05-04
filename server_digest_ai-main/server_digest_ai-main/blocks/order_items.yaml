@@ -1,0 +1,35 @@
+# Блок: Состав заказов покупателей (вспомогательный)
+# Используется блоком stocks для расчёта резервов
+# Сам по себе в дайджест НЕ попадает
+
+id: order_items
+name: "Состав заказов"
+enabled: true
+priority: null              # null = вспомогательный, не попадает в текст дайджеста
+
+source:
+  entity: "Document_ЗаказПокупателя_Запасы"
+  type: document
+  fields:
+    - Ref_Key
+    - Номенклатура
+    - Количество
+    - Резерв
+  filter: "Количество gt 0"
+  orderby: null
+  period: none
+
+resolve:
+  - field: "Номенклатура"
+    catalog: "Catalog_Номенклатура"
+
+mask: []
+
+aggregation:
+  type: none                # данные не агрегируются — передаются как есть в stocks
+
+template: null              # не попадает в дайджест
+
+hide_if_empty: true
+
+depends_on: []

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile main.py)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(mkdir -p C:/Virtual_D/Projects/server_1c_AI/app/api/routes)",
+      "Bash(mkdir -p C:/Virtual_D/Projects/server_1c_AI/app/core)",
+      "Bash(mkdir -p C:/Virtual_D/Projects/server_1c_AI/app/services)",
+      "Bash(mkdir -p C:/Virtual_D/Projects/server_1c_AI/app/models)",
+      "Bash(mkdir -p C:/Virtual_D/Projects/server_1c_AI/data/connected_bases)",
+      "Bash(python -c \"from gigachat.models import Functions, FunctionParameters, FunctionCall; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python -c \"from gigachat.models import Functions, FunctionParameters, FunctionCall; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python -c ':*)",
+      "Bash(.venv/Scripts/python -c \"from app.tools.definitions import ALL_TOOLS; print\\(ALL_TOOLS\\)\")",
+      "Bash(.venv/Scripts/pip install *)"
+    ]
+  }
+}

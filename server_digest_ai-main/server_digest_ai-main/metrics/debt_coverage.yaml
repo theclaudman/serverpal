@@ -1,0 +1,23 @@
+# Метрика: Покрытие кредиторки дебиторкой
+# Формула: дебиторка / кредиторка
+# Показывает сколько раз можно покрыть долги поставщикам за счёт долгов покупателей
+
+id: debt_coverage
+name: "Покрытие кредиторки"
+enabled: true
+
+formula:
+  op: divide
+  a:
+    block: debts
+    value: total
+  b:
+    block: creditors
+    value: total
+
+format: "Покрытие кредиторки дебиторкой: {result:.1f}x ({a_fmt} / {b_fmt})"
+
+warning:
+  condition: below
+  threshold: 1.0
+  text: "⚠️ Дебиторка меньше кредиторки — покупатели должны меньше чем мы поставщикам"

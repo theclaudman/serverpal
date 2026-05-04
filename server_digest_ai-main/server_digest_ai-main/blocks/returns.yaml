@@ -1,0 +1,44 @@
+# Блок: Возвраты от покупателей (чеки ККМ возврат)
+# Каждый возврат важен — используем тип агрегации list
+
+id: returns
+name: "Возвраты"
+enabled: true
+priority: 6
+
+source:
+  entity: "Document_ЧекККМВозврат"
+  type: document
+  fields:
+    - Date
+    - Number
+    - СуммаДокумента
+    - Контрагент_Key
+    - Posted
+  filter: "Posted eq true"
+  orderby: "Date desc"
+  period: 90d               # возвраты за последние 30 дней
+
+resolve:
+  - field: "Контрагент_Key"
+    catalog: "Catalog_Контрагенты"
+
+mask:
+  - field: "Контрагент_Key"
+    prefix: "Контрагент"
+    type: guid_ref
+
+aggregation:
+  type: time_series
+  date_field: "Date"
+  sum_field: "СуммаДокумента"
+  max_rows: null
+
+template: |
+  ВОЗВРАТЫ (за 30 дней): итого {total}, чеков: {count}
+    По дням:
+    {series}
+
+hide_if_empty: true          # если возвратов нет — не писать
+
+depends_on: []

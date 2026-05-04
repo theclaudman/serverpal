@@ -1,0 +1,17 @@
+{
+  "fields": [
+    {
+      "source_field": "Контрагент_Key",
+      "type": "guid_ref",
+      "catalog": "Catalog_Контрагенты",
+      "prefix": "Контрагент"
+    },
+    {
+      "source_field": "Ответственный_Key",
+      "type": "guid_ref",
+      "catalog": "Catalog_Сотрудники",
+      "prefix": "Сотрудник"
+    }
+  ],
+  "mask_amounts": false
+}

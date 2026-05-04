@@ -1,0 +1,23 @@
+# Метрика: Концентрация дебиторки
+# Формула: сумма крупнейшего должника / общая дебиторка
+# Если > 50% — критичная зависимость от одного контрагента
+
+id: debtor_concentration
+name: "Концентрация дебиторки"
+enabled: true
+
+formula:
+  op: divide
+  a:
+    block: debts
+    value: top_1
+  b:
+    block: debts
+    value: total
+
+format: "Концентрация дебиторки: {result_pct:.1f}% на одном контрагенте ({a_fmt} из {b_fmt})"
+
+warning:
+  condition: above
+  threshold: 0.5
+  text: "⚠️ Больше половины дебиторки на одном контрагенте — критичный риск"

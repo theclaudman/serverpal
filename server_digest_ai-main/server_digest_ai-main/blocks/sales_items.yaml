@@ -1,0 +1,55 @@
+# Блок: Продажи по товарам
+# Загружает строки накладных, приклеивает дату из шапки,
+# группирует по номенклатуре — топ товаров по выручке
+
+id: sales_items
+name: "Продажи по товарам"
+enabled: true
+priority: 7
+
+source:
+  entity: "Document_РасходнаяНакладная_Запасы"
+  type: document
+  fields:
+    - Ref_Key
+    - Номенклатура_Key
+    - Количество
+    - Сумма
+    - Цена
+  filter: "Сумма gt 0"
+  orderby: null
+  period: none               # период не нужен — фильтруется через join
+
+compute:
+  - name: "СредняяЦена"
+    op: "divide"
+    a: "Сумма"
+    b: "Количество"
+
+resolve:
+  - field: "Номенклатура_Key"
+    catalog: "Catalog_Номенклатура"
+
+mask: []                     # номенклатура не чувствительна
+
+aggregation:
+  type: group_sum
+  group_by: "Номенклатура_Key"
+  sum_field: "Сумма"
+  max_rows: 30               # топ-30 товаров по выручке
+
+template: |
+  ПРОДАЖИ ПО ТОВАРАМ (за 30 дней): {total}
+    Топ товаров по выручке:
+    {top_items}
+
+hide_if_empty: true
+
+depends_on:
+  - block: sales_headers
+    merge: join_parent        # приклеить поля из родителя
+    match_field: "Ref_Key"    # поле в строках _Запасы
+    parent_field: "Ref_Key"   # поле в шапке накладной
+    copy_fields:              # какие поля скопировать из шапки
+      - Date
+      - Контрагент_Key
