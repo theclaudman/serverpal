@@ -5,7 +5,12 @@ import base64
 import time
 import hashlib
 from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, settings
-from database import get_all_prompts, get_prompt, update_prompt
+from database import (
+    init_db, get_user, username_exists, create_user,
+    verify_password, decrypt_onec_password,
+    get_all_prompts, get_prompt, update_prompt,
+    get_templates, create_template, delete_template,
+)
 
 #import hmac
 import httpx
@@ -62,14 +67,12 @@ import hashlib
 import uvicorn
 from database import _fernet
 
-async def check_service(url: str, timeout: float = 3) -> bool:
-    """Проверяет доступность внешнего сервиса."""
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(url)
-            return response.status_code == 200
-    except Exception:
-        return False
+class TemplateCreate(BaseModel):
+    name: str
+    content: str
+
+
+
 
 
 # Создаём папку для логов
@@ -104,6 +107,43 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/prompts/{prompt_id}/templates")
+async def api_get_templates(request: Request, prompt_id: str):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    return JSONResponse(get_templates(prompt_id))
+
+
+@app.post("/api/prompts/{prompt_id}/templates")
+async def api_create_template(request: Request, prompt_id: str, body: TemplateCreate):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    tid = create_template(prompt_id, body.name, body.content)
+    logger.info(f"Шаблон '{body.name}' создан для промпта '{prompt_id}'")
+    return JSONResponse({"status": "ok", "id": tid})
+
+
+@app.delete("/api/prompts/templates/{template_id}")
+async def api_delete_template(request: Request, template_id: int):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    delete_template(template_id)
+    return JSONResponse({"status": "ok"})
+
+async def check_service(url: str, timeout: float = 3) -> bool:
+    """Проверяет доступность внешнего сервиса."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url)
+            return response.status_code == 200
+    except Exception:
+        return False
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)

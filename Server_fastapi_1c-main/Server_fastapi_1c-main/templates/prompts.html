@@ -8,79 +8,263 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
-        h1 { margin-bottom: 20px; color: #4fc3f7; }
-        .prompt-card {
-            background: #16213e; border-radius: 8px; padding: 16px;
-            margin-bottom: 16px; border: 1px solid #0f3460;
+        h1 { margin-bottom: 8px; color: #4fc3f7; }
+        .subtitle { color: #888; margin-bottom: 20px; font-size: 14px; }
+
+        .layout { display: flex; gap: 20px; height: calc(100vh - 120px); }
+
+        /* Левая панель — список промптов */
+        .sidebar { width: 260px; flex-shrink: 0; }
+        .prompt-tab {
+            padding: 12px 16px; background: #16213e; border: 1px solid #0f3460;
+            border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: 0.2s;
         }
-        .prompt-card h3 { color: #4fc3f7; margin-bottom: 4px; }
-        .prompt-card .prompt-id { color: #888; font-size: 12px; margin-bottom: 12px; }
-        .prompt-card textarea {
-            width: 100%; min-height: 200px; background: #0f0f23; color: #eee;
-            border: 1px solid #333; border-radius: 4px; padding: 12px;
-            font-family: monospace; font-size: 13px; resize: vertical;
+        .prompt-tab:hover { border-color: #4fc3f7; }
+        .prompt-tab.active { border-color: #4fc3f7; background: #1a2744; }
+        .prompt-tab .tab-name { font-weight: bold; font-size: 14px; }
+        .prompt-tab .tab-status { font-size: 11px; color: #888; margin-top: 2px; }
+
+        /* Правая панель — редактор */
+        .editor { flex: 1; display: flex; flex-direction: column; }
+        .editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .editor-header h2 { color: #4fc3f7; font-size: 18px; }
+
+        .active-prompt-label { font-size: 12px; color: #4caf50; margin-bottom: 8px; }
+
+        textarea.main-editor {
+            flex: 1; width: 100%; background: #0f0f23; color: #eee;
+            border: 1px solid #333; border-radius: 6px; padding: 14px;
+            font-family: monospace; font-size: 13px; resize: none;
+            min-height: 200px;
         }
-        .prompt-card .actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+
+        .editor-actions { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+
         .btn {
             padding: 8px 20px; border: none; border-radius: 4px;
-            cursor: pointer; font-size: 14px; color: #fff;
+            cursor: pointer; font-size: 13px; color: #fff; transition: 0.2s;
         }
-        .btn-save { background: #4fc3f7; color: #000; }
-        .btn-save:hover { background: #81d4fa; }
-        .status { font-size: 13px; color: #4caf50; }
-        .back-link { color: #4fc3f7; text-decoration: none; display: inline-block; margin-bottom: 16px; }
-        .updated { color: #888; font-size: 12px; }
+        .btn-primary { background: #4fc3f7; color: #000; }
+        .btn-primary:hover { background: #81d4fa; }
+        .btn-green { background: #4caf50; }
+        .btn-green:hover { background: #66bb6a; }
+        .btn-outline { background: transparent; border: 1px solid #555; color: #ccc; }
+        .btn-outline:hover { border-color: #4fc3f7; color: #4fc3f7; }
+        .btn-danger { background: transparent; border: 1px solid #c0392b; color: #e74c3c; font-size: 12px; padding: 4px 10px; }
+        .btn-danger:hover { background: #c0392b; color: #fff; }
+
+        .status-msg { font-size: 13px; color: #4caf50; margin-left: 8px; }
+
+        /* Библиотека шаблонов */
+        .templates-section { margin-top: 16px; border-top: 1px solid #333; padding-top: 12px; }
+        .templates-section h3 { font-size: 14px; color: #888; margin-bottom: 10px; }
+        .template-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px; background: #16213e; border: 1px solid #0f3460;
+            border-radius: 4px; margin-bottom: 6px; cursor: pointer; transition: 0.2s;
+        }
+        .template-item:hover { border-color: #4fc3f7; }
+        .template-item .tpl-name { font-size: 13px; }
+        .template-item .tpl-actions { display: flex; gap: 6px; }
+
+        .save-template-row { display: flex; gap: 8px; margin-top: 8px; }
+        .save-template-row input {
+            flex: 1; padding: 6px 10px; background: #0f0f23; border: 1px solid #333;
+            border-radius: 4px; color: #eee; font-size: 13px;
+        }
+
+        .back-link { color: #4fc3f7; text-decoration: none; display: inline-block; margin-bottom: 12px; font-size: 14px; }
+
+        .empty-state { color: #555; font-style: italic; font-size: 13px; }
     </style>
 </head>
 <body>
     <a href="/" class="back-link"><i class="bi bi-arrow-left"></i> На главную</a>
     <h1><i class="bi bi-chat-square-text"></i> Управление промптами</h1>
-    <p style="color:#888; margin-bottom:20px;">Редактируйте системные промпты для ИИ. Изменения применяются сразу.</p>
+    <p class="subtitle">Выберите промпт слева, редактируйте и сохраняйте шаблоны в библиотеку.</p>
 
-    <div id="prompts-container">Загрузка...</div>
+    <div class="layout">
+        <!-- Левая панель -->
+        <div class="sidebar" id="sidebar">
+            <div style="color:#888; font-size:12px; margin-bottom:8px;">ПРОМПТЫ</div>
+        </div>
+
+        <!-- Правая панель -->
+        <div class="editor" id="editor" style="display:none;">
+            <div class="editor-header">
+                <h2 id="editor-title">—</h2>
+            </div>
+            <div class="active-prompt-label" id="active-label">Активный промпт</div>
+
+            <textarea class="main-editor" id="main-textarea" placeholder="Введите системный промпт..."></textarea>
+
+            <div class="editor-actions">
+                <button class="btn btn-primary" onclick="saveActivePrompt()">
+                    <i class="bi bi-check-lg"></i> Сохранить как активный
+                </button>
+                <span id="save-status" class="status-msg"></span>
+            </div>
+
+            <!-- Библиотека шаблонов -->
+            <div class="templates-section">
+                <h3><i class="bi bi-collection"></i> Библиотека шаблонов</h3>
+                <div id="templates-list"></div>
+
+                <div class="save-template-row">
+                    <input type="text" id="new-template-name" placeholder="Название нового шаблона...">
+                    <button class="btn btn-outline" onclick="saveAsTemplate()">
+                        <i class="bi bi-plus-lg"></i> Сохранить в библиотеку
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="empty-state" style="flex:1; display:flex; align-items:center; justify-content:center;">
+            <p class="empty-state">← Выберите промпт для редактирования</p>
+        </div>
+    </div>
 
     <script>
-        async function loadPrompts() {
+        let prompts = [];
+        let currentPromptId = null;
+
+        async function init() {
             const res = await fetch('/api/prompts');
-            if (!res.ok) { document.getElementById('prompts-container').textContent = 'Ошибка загрузки'; return; }
-            const prompts = await res.json();
-            const container = document.getElementById('prompts-container');
-            container.innerHTML = '';
+            prompts = await res.json();
+            renderSidebar();
+        }
+
+        function renderSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            // Сохраняем заголовок
+            sidebar.innerHTML = '<div style="color:#888;font-size:12px;margin-bottom:8px;">ПРОМПТЫ</div>';
 
             prompts.forEach(p => {
-                const card = document.createElement('div');
-                card.className = 'prompt-card';
-                card.innerHTML = `
-                    <h3>${p.name}</h3>
-                    <div class="prompt-id">ID: ${p.id} | <span class="updated">Обновлён: ${p.updated_at || 'никогда'}</span></div>
-                    <textarea id="prompt-${p.id}">${p.content || '(пусто — используется промпт из файла)'}</textarea>
-                    <div class="actions">
-                        <button class="btn btn-save" onclick="savePrompt('${p.id}')">Сохранить</button>
-                        <span id="status-${p.id}" class="status"></span>
-                    </div>
+                const tab = document.createElement('div');
+                tab.className = 'prompt-tab' + (p.id === currentPromptId ? ' active' : '');
+                tab.innerHTML = `
+                    <div class="tab-name">${p.name}</div>
+                    <div class="tab-status">${p.content ? '● Настроен' : '○ Из файла'}</div>
                 `;
-                container.appendChild(card);
+                tab.onclick = () => selectPrompt(p.id);
+                sidebar.appendChild(tab);
             });
         }
 
-        async function savePrompt(id) {
-            const content = document.getElementById('prompt-' + id).value;
-            const res = await fetch('/api/prompts/' + id, {
+        async function selectPrompt(id) {
+            currentPromptId = id;
+            const prompt = prompts.find(p => p.id === id);
+
+            document.getElementById('editor').style.display = 'flex';
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('editor-title').textContent = prompt.name;
+            document.getElementById('main-textarea').value = prompt.content || '';
+            document.getElementById('active-label').textContent =
+                prompt.content ? '● Активный промпт (настроен)' : '○ Промпт не задан — используется из файла';
+            document.getElementById('save-status').textContent = '';
+
+            renderSidebar();
+            loadTemplates(id);
+        }
+
+        async function loadTemplates(promptId) {
+            const res = await fetch(`/api/prompts/${promptId}/templates`);
+            const templates = await res.json();
+            const container = document.getElementById('templates-list');
+
+            if (templates.length === 0) {
+                container.innerHTML = '<p class="empty-state">Нет сохранённых шаблонов</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            templates.forEach(t => {
+                const item = document.createElement('div');
+                item.className = 'template-item';
+                item.innerHTML = `
+                    <span class="tpl-name">${t.name}</span>
+                    <div class="tpl-actions">
+                        <button class="btn btn-green" style="font-size:11px;padding:4px 10px;"
+                                onclick="event.stopPropagation(); useTemplate(${t.id}, \`${escapeHtml(t.content)}\`)">
+                            Использовать
+                        </button>
+                        <button class="btn btn-danger"
+                                onclick="event.stopPropagation(); deleteTemplate(${t.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                `;
+                item.onclick = () => previewTemplate(t.content);
+                container.appendChild(item);
+            });
+        }
+
+        function previewTemplate(content) {
+            // Показать содержимое шаблона (клик по строке)
+            document.getElementById('main-textarea').value = content;
+        }
+
+        function useTemplate(id, content) {
+            document.getElementById('main-textarea').value = content;
+            saveActivePrompt();
+        }
+
+        async function saveActivePrompt() {
+            const content = document.getElementById('main-textarea').value;
+            const res = await fetch(`/api/prompts/${currentPromptId}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({content: content})
+                body: JSON.stringify({content})
             });
-            const statusEl = document.getElementById('status-' + id);
+
+            const statusEl = document.getElementById('save-status');
             if (res.ok) {
                 statusEl.textContent = '✓ Сохранено';
-                setTimeout(() => statusEl.textContent = '', 3000);
+                statusEl.style.color = '#4caf50';
+                // Обновить данные
+                const prompt = prompts.find(p => p.id === currentPromptId);
+                prompt.content = content;
+                document.getElementById('active-label').textContent = content
+                    ? '● Активный промпт (настроен)'
+                    : '○ Промпт не задан — используется из файла';
+                renderSidebar();
             } else {
-                statusEl.textContent = '✗ Ошибка';
-                statusEl.style.color = '#f44336';
+                statusEl.textContent = '✗ Ошибка сохранения';
+                statusEl.style.color = '#e74c3c';
+            }
+            setTimeout(() => statusEl.textContent = '', 3000);
+        }
+
+        async function saveAsTemplate() {
+            const name = document.getElementById('new-template-name').value.trim();
+            const content = document.getElementById('main-textarea').value;
+
+            if (!name) { alert('Введите название шаблона'); return; }
+            if (!content) { alert('Промпт пустой'); return; }
+
+            const res = await fetch(`/api/prompts/${currentPromptId}/templates`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, content})
+            });
+
+            if (res.ok) {
+                document.getElementById('new-template-name').value = '';
+                loadTemplates(currentPromptId);
             }
         }
 
-        loadPrompts();
+        async function deleteTemplate(id) {
+            if (!confirm('Удалить шаблон?')) return;
+            await fetch(`/api/prompts/templates/${id}`, {method: 'DELETE'});
+            loadTemplates(currentPromptId);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        }
+
+        init();
     </script>
 </body>
 </html>

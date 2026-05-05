@@ -13,7 +13,31 @@ def _fernet() -> Fernet:
         raise RuntimeError("ENCRYPTION_KEY не задан в .env")
     return Fernet(settings.encryption_key.encode())
 
+def get_templates(prompt_id: str) -> list[dict]:
+    """Возвращает все шаблоны для промпта."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, prompt_id, name, content, created_at FROM prompt_templates WHERE prompt_id = ? ORDER BY created_at DESC",
+            (prompt_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
+
+def create_template(prompt_id: str, name: str, content: str) -> int:
+    """Создаёт новый шаблон. Возвращает id."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO prompt_templates (prompt_id, name, content) VALUES (?, ?, ?)",
+            (prompt_id, name, content),
+        )
+    return cursor.lastrowid
+
+
+def delete_template(template_id: int) -> None:
+    """Удаляет шаблон."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM prompt_templates WHERE id = ?", (template_id,))
+        
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -89,21 +113,21 @@ def init_db() -> None:
             )
         """)
 
-        # Промпты по умолчанию
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS prompt_templates (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_id   TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                content     TEXT NOT NULL DEFAULT '',
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         default_prompts = [
             ("chat", "Чат-ассистент", ""),
             ("digest", "Дайджест", ""),
-            ("ask", "Вопрос по дайджесту", ""),
-        ]        
-        # default_prompts = [
-        #     ("chat", "Чат-ассистент", ""),
-        #     ("daily_report", "Ежедневный отчёт", ""),
-        #     ("weekly_report", "Еженедельный отчёт", ""),
-        #     ("digest", "Дайджест", ""),
-        #     ("digest_anonymous", "Дайджест (анонимный)", ""),
-        #     ("ask", "Вопрос по данным", ""),
-        #     ("ask_anonymous", "Вопрос по данным (анонимный)", ""),
-        # ]
+            ("ask", "Вопрос по данным", ""),
+        ]
         for pid, name, content in default_prompts:
             conn.execute(
                 "INSERT OR IGNORE INTO prompts (id, name, content) VALUES (?, ?, ?)",
