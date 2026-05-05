@@ -19,6 +19,32 @@ def get_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_all_prompts() -> list[dict]:
+    """Возвращает все промпты."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id, name, content, updated_at FROM prompts ORDER BY id").fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_prompt(prompt_id: str) -> dict | None:
+    """Возвращает один промпт по id."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, name, content, updated_at FROM prompts WHERE id = ?",
+            (prompt_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_prompt(prompt_id: str, content: str) -> None:
+    """Обновляет текст промпта."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE prompts SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (content, prompt_id),
+        )
+
+
 
 def init_db() -> None:
     with get_connection() as conn:
@@ -53,6 +79,36 @@ def init_db() -> None:
 
             # Удаляем старую колонку
             conn.execute("ALTER TABLE users DROP COLUMN password")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS prompts (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                content     TEXT NOT NULL DEFAULT '',
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Промпты по умолчанию
+        default_prompts = [
+            ("chat", "Чат-ассистент", ""),
+            ("digest", "Дайджест", ""),
+            ("ask", "Вопрос по дайджесту", ""),
+        ]        
+        # default_prompts = [
+        #     ("chat", "Чат-ассистент", ""),
+        #     ("daily_report", "Ежедневный отчёт", ""),
+        #     ("weekly_report", "Еженедельный отчёт", ""),
+        #     ("digest", "Дайджест", ""),
+        #     ("digest_anonymous", "Дайджест (анонимный)", ""),
+        #     ("ask", "Вопрос по данным", ""),
+        #     ("ask_anonymous", "Вопрос по данным (анонимный)", ""),
+        # ]
+        for pid, name, content in default_prompts:
+            conn.execute(
+                "INSERT OR IGNORE INTO prompts (id, name, content) VALUES (?, ?, ?)",
+                (pid, name, content),
+            )
 
 
 def get_user(username: str) -> dict | None:

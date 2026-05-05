@@ -5,6 +5,8 @@ import base64
 import time
 import hashlib
 from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, settings
+from database import get_all_prompts, get_prompt, update_prompt
+
 #import hmac
 import httpx
 import json
@@ -675,6 +677,49 @@ async def health():
         }
     }
 
+class PromptUpdate(BaseModel):
+    content: str
+
+
+@app.get("/api/prompts")
+async def api_get_prompts(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    return JSONResponse(get_all_prompts())
+
+
+@app.get("/api/prompts/{prompt_id}")
+async def api_get_prompt(request: Request, prompt_id: str):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    prompt = get_prompt(prompt_id)
+    if not prompt:
+        return JSONResponse({"error": "Промпт не найден"}, status_code=404)
+    return JSONResponse(prompt)
+
+
+@app.post("/api/prompts/{prompt_id}")
+async def api_update_prompt(request: Request, prompt_id: str, body: PromptUpdate):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    prompt = get_prompt(prompt_id)
+    if not prompt:
+        return JSONResponse({"error": "Промпт не найден"}, status_code=404)
+    update_prompt(prompt_id, body.content)
+    logger.info(f"Промпт '{prompt_id}' обновлён пользователем {session['user']}")
+    return JSONResponse({"status": "ok"})
+
+PROMPTS_TEMPLATE_PATH = Path("templates/prompts.html")
+
+@app.get("/prompts", response_class=HTMLResponse)
+async def prompts_page(request: Request):
+    _, redirect = require_session(request)
+    if redirect:
+        return redirect
+    return HTMLResponse(content=PROMPTS_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление промптами</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+        h1 { margin-bottom: 20px; color: #4fc3f7; }
+        .prompt-card {
+            background: #16213e; border-radius: 8px; padding: 16px;
+            margin-bottom: 16px; border: 1px solid #0f3460;
+        }
+        .prompt-card h3 { color: #4fc3f7; margin-bottom: 4px; }
+        .prompt-card .prompt-id { color: #888; font-size: 12px; margin-bottom: 12px; }
+        .prompt-card textarea {
+            width: 100%; min-height: 200px; background: #0f0f23; color: #eee;
+            border: 1px solid #333; border-radius: 4px; padding: 12px;
+            font-family: monospace; font-size: 13px; resize: vertical;
+        }
+        .prompt-card .actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+        .btn {
+            padding: 8px 20px; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 14px; color: #fff;
+        }
+        .btn-save { background: #4fc3f7; color: #000; }
+        .btn-save:hover { background: #81d4fa; }
+        .status { font-size: 13px; color: #4caf50; }
+        .back-link { color: #4fc3f7; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+        .updated { color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link"><i class="bi bi-arrow-left"></i> На главную</a>
+    <h1><i class="bi bi-chat-square-text"></i> Управление промптами</h1>
+    <p style="color:#888; margin-bottom:20px;">Редактируйте системные промпты для ИИ. Изменения применяются сразу.</p>
+
+    <div id="prompts-container">Загрузка...</div>
+
+    <script>
+        async function loadPrompts() {
+            const res = await fetch('/api/prompts');
+            if (!res.ok) { document.getElementById('prompts-container').textContent = 'Ошибка загрузки'; return; }
+            const prompts = await res.json();
+            const container = document.getElementById('prompts-container');
+            container.innerHTML = '';
+
+            prompts.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'prompt-card';
+                card.innerHTML = `
+                    <h3>${p.name}</h3>
+                    <div class="prompt-id">ID: ${p.id} | <span class="updated">Обновлён: ${p.updated_at || 'никогда'}</span></div>
+                    <textarea id="prompt-${p.id}">${p.content || '(пусто — используется промпт из файла)'}</textarea>
+                    <div class="actions">
+                        <button class="btn btn-save" onclick="savePrompt('${p.id}')">Сохранить</button>
+                        <span id="status-${p.id}" class="status"></span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function savePrompt(id) {
+            const content = document.getElementById('prompt-' + id).value;
+            const res = await fetch('/api/prompts/' + id, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({content: content})
+            });
+            const statusEl = document.getElementById('status-' + id);
+            if (res.ok) {
+                statusEl.textContent = '✓ Сохранено';
+                setTimeout(() => statusEl.textContent = '', 3000);
+            } else {
+                statusEl.textContent = '✗ Ошибка';
+                statusEl.style.color = '#f44336';
+            }
+        }
+
+        loadPrompts();
+    </script>
+</body>
+</html>
