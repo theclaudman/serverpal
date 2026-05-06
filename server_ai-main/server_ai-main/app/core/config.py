@@ -7,7 +7,7 @@ class Settings(BaseSettings):
 
     # LLM (OpenAI-совместимый API — LM Studio, OpenAI, и др.)
     openai_api_key: str = "lm-studio"
-    openai_base_url: str = "http://localhost:1234/v1"
+    openai_base_url: str = "http://127.0.0.1:1234/v1"
     openai_model: str = "dolphin-2.9.4-llama3.1-8b"
 
     # Сервис

@@ -135,13 +135,14 @@ async def api_delete_template(request: Request, template_id: int):
     delete_template(template_id)
     return JSONResponse({"status": "ok"})
 
-async def check_service(url: str, timeout: float = 3) -> bool:
+async def check_service(url: str, timeout: float = 5) -> bool:
     """Проверяет доступность внешнего сервиса."""
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.get(url)
             return response.status_code == 200
-    except Exception:
+    except Exception as e:
+        logger.error(f"check_service({url}) failed: {type(e).__name__}: {e}")
         return False
 
 @app.exception_handler(Exception)
@@ -595,22 +596,7 @@ def get_chat(request: Request):
     return HTMLResponse(content=CHAT_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
-# @app.post("/api/chat")
-# @limiter.limit("20/minute")
-
-# async def post_chat(request: Request, body: ChatMessage):
-#     session, _ = require_session(request)
-#     if not session:
-#         return JSONResponse({"error": "Не авторизован"}, status_code=401)
-
-#     _parsed = urlparse(session["onec_base_url"])
-#     onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
-#     try:
-#         answer = ai_chat(body.prompt, session["user"], session["password"], onec_ip)
-#     except Exception as e:
-#         return JSONResponse({"error": str(e)}, status_code=502)
-
-#     return JSONResponse({"answer": answer})
+# @app.post("/api/chat") — старая закомментированная версия удалена
 
 @app.post("/api/chat")
 @limiter.limit("20/minute")
@@ -624,6 +610,26 @@ async def post_chat(request: Request, body: ChatMessage):
             {"error": "AI-сервис недоступен. Попробуйте позже."},
             status_code=503,
         )
+
+    # Промпт из БД (если заполнен)
+    chat_prompt = get_prompt("chat")
+    system_prompt = chat_prompt["content"] if chat_prompt and chat_prompt["content"].strip() else ""
+
+    _parsed = urlparse(session["onec_base_url"])
+    onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
+    try:
+        answer = await ai_chat(
+            body.prompt,
+            session["user"],
+            decrypt_onec_password(session["password"]),
+            onec_ip,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка AI-чата: {e}", exc_info=True)
+        return JSONResponse({"error": str(e)}, status_code=502)
+
+    return JSONResponse({"answer": answer})
 
 
 
@@ -647,14 +653,14 @@ def digest_page(request: Request):
     return HTMLResponse(content=DIGEST_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
-# @app.get("/api/digest/providers")
-# async def api_digest_providers(request: Request):
-#     session, redirect = require_session(request)
-#     if not session:
-#         return JSONResponse({"error": "Не авторизован"}, status_code=401)
-#     result = get_providers()
-#     return JSONResponse(result)
-
+@app.get("/api/digest/providers")
+async def api_digest_providers(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    result = await get_providers()
+    return JSONResponse(result)
+    
 @app.post("/api/digest")
 @limiter.limit("5/hour")
 async def api_digest(request: Request, body: DigestBody):
@@ -662,27 +668,23 @@ async def api_digest(request: Request, body: DigestBody):
     if not session:
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
 
-    if not await check_service(f"{DIGEST_SERVICE_URL}/health"):
-        return JSONResponse(
-            {"error": "Сервис дайджеста недоступен. Попробуйте позже."},
-            status_code=503,
-        )
+    # if not await check_service(f"{DIGEST_SERVICE_URL}/health"):
+    #     return JSONResponse(
+    #         {"error": "Сервис дайджеста недоступен. Попробуйте позже."},
+    #         status_code=503,
+    #     )
 
+    # Промпт из БД (если заполнен)
+    digest_prompt = get_prompt("digest")
+    system_prompt = digest_prompt["content"] if digest_prompt and digest_prompt["content"].strip() else ""
 
-
-@app.post("/api/digest")
-@limiter.limit("11/hour")
-async def api_digest(request: Request, body: DigestBody):
-    session, _ = require_session(request)
-    if not session:
-        return JSONResponse({"error": "Не авторизован"}, status_code=401)
-
-    result = generate_digest(
+    result = await generate_digest(
         login=session["user"],
-        password=session["password"],
+        password=decrypt_onec_password(session["password"]),
         onec_base_url=session["onec_base_url"],
         date=body.date,
         provider=body.provider,
+        system_prompt=system_prompt,
     )
     return JSONResponse(result)
 
@@ -693,12 +695,17 @@ async def api_digest_ask(request: Request, body: AskBody):
     if not session:
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
 
-    result = ask_question(
+    # Промпт «ask» из БД (если заполнен)
+    ask_prompt = get_prompt("ask")
+    system_prompt = ask_prompt["content"] if ask_prompt and ask_prompt["content"].strip() else ""
+
+    result = await ask_question(
         login=session["user"],
-        password=session["password"],
+        password=decrypt_onec_password(session["password"]),
         onec_base_url=session["onec_base_url"],
         question=body.question,
         provider=body.provider,
+        system_prompt=system_prompt,
     )
     return JSONResponse(result)
 
@@ -764,4 +771,4 @@ async def prompts_page(request: Request):
 
 if __name__ == "__main__":
     
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=9001, reload=True)

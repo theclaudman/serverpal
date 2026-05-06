@@ -18,7 +18,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8888 --reload
 
 ## Документация API
 
-После запуска: http://localhost:8000/docs
+После запуска: http://127.0.0.1:9001/docs
 
 ## Структура хранилища
 

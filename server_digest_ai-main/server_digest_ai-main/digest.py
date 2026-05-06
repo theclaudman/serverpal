@@ -46,7 +46,7 @@ LLM_PROVIDER = "lmstudio"   # "lmstudio" | "openai"
 # Подключение к 1С — меняй здесь
 # ---------------------------------------------------------------------------
 
-BASE_URL  = "http://localhost/Eu/odata/standard.odata"
+BASE_URL  = "http://127.0.0.1/Eu/odata/standard.odata"
 LOGIN     = "admin_r"
 PASSWORD  = "123"
 CLIENT_ID = "client_001"
@@ -147,6 +147,7 @@ def run_digest_api(
     password: str,
     date: datetime = None,
     provider: str = "lmstudio",
+    system_prompt: str = "",
 ) -> dict:
     """
     API-версия run_digest().
@@ -197,12 +198,16 @@ def run_digest_api(
     _save(run_dir, "5_aggregated.txt", aggregated_text)
 
     # 3. Отправка в LLM
-    prompt_file   = "digest_anonymous.txt" if anonymize else "digest.txt"
-    system_prompt = _load_prompt(prompt_file)
+    # Промпт из БД дашборда (приоритет) или из файла (фолбэк)
+    if system_prompt.strip():
+        final_prompt = system_prompt
+    else:
+        prompt_file   = "digest_anonymous.txt" if anonymize else "digest.txt"
+        final_prompt  = _load_prompt(prompt_file)
 
     from lm_client import send
     try:
-        digest_masked = send(aggregated_text, system_prompt, provider=provider)
+        digest_masked = send(aggregated_text, final_prompt, provider=provider)
     except Exception as e:
         return {
             "status": "error",

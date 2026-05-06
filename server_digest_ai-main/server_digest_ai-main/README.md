@@ -16,7 +16,7 @@
 ## Архитектура
 
 ```
-[Дашборд :8000] → [Digest API :8002] → [LLM (LM Studio :1234 / OpenAI)]
+[Дашборд :9001] → [Digest API :8002] → [LLM (LM Studio :1234 / OpenAI)]
                          ↓
                    [1С УНФ OData]
 ```
@@ -50,14 +50,14 @@ OPENAI_API_KEY=sk-...
 python server.py
 ```
 
-Сервис поднимается на `http://localhost:8002`.
+Сервис поднимается на `http://127.0.0.1:8002`.
 
 ### 4. Проверка
 
 Открой в браузере:
-- `http://localhost:8002/health` — статус сервиса
-- `http://localhost:8002/api/providers` — доступные LLM-провайдеры
-- `http://localhost:8002/docs` — Swagger UI для тестирования API
+- `http://127.0.0.1:8002/health` — статус сервиса
+- `http://127.0.0.1:8002/api/providers` — доступные LLM-провайдеры
+- `http://127.0.0.1:8002/docs` — Swagger UI для тестирования API
 
 ## API
 
@@ -90,7 +90,7 @@ python server.py
 ```json
 {
   "credentials": {
-    "base_url": "http://localhost/Eu/odata/standard.odata",
+    "base_url": "http://127.0.0.1/Eu/odata/standard.odata",
     "login": "admin_r",
     "password": "123"
   },
@@ -123,7 +123,7 @@ python server.py
 ```json
 {
   "credentials": {
-    "base_url": "http://localhost/Eu/odata/standard.odata",
+    "base_url": "http://127.0.0.1/Eu/odata/standard.odata",
     "login": "admin_r",
     "password": "123"
   },

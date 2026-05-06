@@ -60,7 +60,7 @@ app = FastAPI(
 # CORS — дашборд на другом порту
 import os
 
-ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://127.0.0.1:9001").split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -188,6 +188,7 @@ async def generate_digest(req: DigestRequest):
         password=req.credentials.password,
         date=target_date,
         provider=req.provider,
+        system_prompt=req.system_prompt,
     )
 
     # Ошибка — пробрасываем
@@ -253,18 +254,21 @@ async def ask_question(req: AskRequest):
             ).model_dump(),
         )
 
-    # Загружаем промпт
-    prompt_file = "ask_anonymous.txt" if anonymize else "ask.txt"
-    try:
-        system_prompt = _load_prompt(prompt_file)
-    except FileNotFoundError as e:
-        return JSONResponse(
-            status_code=500,
-            content=ErrorResponse(
-                error="prompt_missing",
-                message=str(e),
-            ).model_dump(),
-        )
+    # Загружаем промпт: из запроса (БД дашборда) или из файла (фолбэк)
+    if req.system_prompt.strip():
+        system_prompt = req.system_prompt
+    else:
+        prompt_file = "ask_anonymous.txt" if anonymize else "ask.txt"
+        try:
+            system_prompt = _load_prompt(prompt_file)
+        except FileNotFoundError as e:
+            return JSONResponse(
+                status_code=500,
+                content=ErrorResponse(
+                    error="prompt_missing",
+                    message=str(e),
+                ).model_dump(),
+            )
 
     # Отправляем в LLM
     from lm_client import send_with_question

@@ -23,7 +23,7 @@ SERVICES = [
                 "--host", "0.0.0.0", "--port", "8001"],
     },
     {
-        "name": "Dashboard (8000)",
+        "name": "Dashboard (9001)",
         "cwd": "Server_fastapi_1c-main/Server_fastapi_1c-main",
         "cmd": [sys.executable, "main.py"],
     },

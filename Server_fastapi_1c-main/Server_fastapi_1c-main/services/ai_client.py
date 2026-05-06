@@ -1,33 +1,49 @@
 # services/ai_client.py
 
-import json
-import urllib.request
+"""
+HTTP-клиент к AI Bridge (порт 8001).
+
+Async (httpx). Передаёт system_prompt из БД дашборда —
+если пусто, AI Bridge использует свой файл prompts/chat.txt.
+"""
+
+import httpx
 
 from config import AI_SERVICE_URL
 
+# Таймаут — LLM может думать долго (function calling до 5 итераций)
+_TIMEOUT = 120
 
-def chat(prompt: str, login: str, password: str, onec_ip: str) -> str:
+
+async def chat(
+    prompt: str,
+    login: str,
+    password: str,
+    onec_ip: str,
+    system_prompt: str = "",
+) -> str:
     """Отправляет сообщение в AI-сервис и возвращает текст ответа."""
     if not AI_SERVICE_URL:
         raise RuntimeError("AI_SERVICE_URL не задан в config.py")
 
     url = f"{AI_SERVICE_URL.rstrip('/')}/chat/"
-    payload = json.dumps(
-        {
-            "credentials": {
-                "login": login,
-                "password": password,
-                "ip": onec_ip,
-            },
-            "prompt": prompt,
+    payload = {
+        "credentials": {
+            "login": login,
+            "password": password,
+            "ip": onec_ip,
         },
-        ensure_ascii=False,
-    ).encode("utf-8")
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+    }
 
-    req = urllib.request.Request(url, data=payload, method="POST")
-    req.add_header("Content-Type", "application/json; charset=utf-8")
-
-    with urllib.request.urlopen(req, timeout=60) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await client.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        data = response.json()
 
     return data["answer"]

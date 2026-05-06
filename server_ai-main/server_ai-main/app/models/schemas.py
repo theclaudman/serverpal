@@ -34,6 +34,7 @@ class ChatRequest(BaseModel):
     """Произвольный текстовый запрос клиента к AI."""
     credentials: BaseCredentials
     prompt: str
+    system_prompt: str = ""  # если пусто — берётся из файла prompts/chat.txt
 
 
 class ChatResponse(BaseModel):

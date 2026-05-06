@@ -335,7 +335,7 @@ def build_layer1(
 if __name__ == "__main__":
     import os
 
-    BASE_URL = "http://localhost/Eu/odata/standard.odata"
+    BASE_URL = "http://127.0.0.1/Eu/odata/standard.odata"
     LOGIN = "admin_r"
     PASSWORD = "123"
 

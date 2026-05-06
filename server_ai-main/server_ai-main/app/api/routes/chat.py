@@ -14,6 +14,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     Принимает текстовый промпт клиента, передаёт в GigaChat, возвращает ответ.
     """
     base_id = make_base_id(req.credentials)
-    answer = ai_service.answer_prompt(req.prompt, req.credentials)
+    answer = ai_service.answer_prompt(req.prompt, req.credentials, system_prompt=req.system_prompt)
     logger.info(f"[{base_id}] Ответ на промпт сформирован")
     return ChatResponse(base_id=base_id, answer=answer)

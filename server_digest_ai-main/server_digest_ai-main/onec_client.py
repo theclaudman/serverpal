@@ -1,7 +1,7 @@
 """
 onec_client.py — запросы к 1С УНФ через OData
 Все функции параметризованы: base_url, login, password
-Работает с любой базой клиента, не только localhost
+Работает с любой базой клиента, не только 127.0.0.1
 """
 
 import requests
@@ -165,7 +165,7 @@ def check_connection(base_url: str, login: str, password: str) -> bool:
 
 if __name__ == "__main__":
 
-    BASE_URL = "http://localhost/Eu/odata/standard.odata"
+    BASE_URL = "http://127.0.0.1/Eu/odata/standard.odata"
     LOGIN    = "admin_r"
     PASSWORD = "123"
 
@@ -281,7 +281,7 @@ def fetch_contractor_names(base_url: str, login: str, password: str,
 
 
 if __name__ == "__main__":
-    BASE_URL = "http://localhost/Eu/odata/standard.odata"
+    BASE_URL = "http://127.0.0.1/Eu/odata/standard.odata"
     LOGIN    = "admin_r"
     PASSWORD = "123"
 

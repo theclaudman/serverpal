@@ -29,7 +29,7 @@ def test_execute_query_returns_counterparties(onec_credentials: BaseCredentials)
 def test_execute_query_bad_credentials():
     """Неверные учётные данные вызывают RuntimeError."""
     bad_creds = BaseCredentials(
-        ip="localhost/unf_dashboard",
+        ip="127.0.0.1/unf_dashboard",
         login="НеверныйПользователь",
         password="НеверныйПароль",
     )

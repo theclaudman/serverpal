@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 class Credentials(BaseModel):
     """Параметры подключения к 1С."""
-    base_url: str = Field(..., description="URL OData 1С, например http://localhost/Eu/odata/standard.odata")
+    base_url: str = Field(..., description="URL OData 1С, например http://127.0.0.1/Eu/odata/standard.odata")
     login: str
     password: str
 
@@ -32,6 +32,10 @@ class DigestRequest(BaseModel):
         "lmstudio",
         description="LLM-провайдер: lmstudio | openai"
     )
+    system_prompt: str = Field(
+        "",
+        description="Системный промпт из БД дашборда. Если пусто — берётся из файла."
+    )
 
 
 class AskRequest(BaseModel):
@@ -41,6 +45,10 @@ class AskRequest(BaseModel):
     provider: str = Field(
         "lmstudio",
         description="LLM-провайдер: lmstudio | openai"
+    )
+    system_prompt: str = Field(
+        "",
+        description="Системный промпт из БД дашборда. Если пусто — берётся из файла."
     )
 
 

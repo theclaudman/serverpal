@@ -23,7 +23,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 # LM Studio
-LMSTUDIO_BASE_URL = "http://localhost:1234/v1"
+LMSTUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
 LMSTUDIO_MODEL    = "dolphin-2.9.4-llama3.1-8b"
 
 # OpenAI

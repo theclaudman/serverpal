@@ -1101,7 +1101,7 @@ if __name__ == "__main__":
         print("=" * 60)
 
         conn = Connection(
-            base_url="http://localhost/Eu/odata/standard.odata",
+            base_url="http://127.0.0.1/Eu/odata/standard.odata",
             login="admin_r",
             password="123",
         )

@@ -85,12 +85,17 @@ TOOLS = [
 # =========================
 # 💬 CHAT
 # =========================
-def answer_prompt(user_prompt: str, credentials: BaseCredentials) -> str:
+def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt: str = "") -> str:
     client = _get_client()
-    system_prompt = _load_prompt("chat.txt")
+
+    # Промпт из БД дашборда (приоритет) или из файла (фолбэк)
+    if system_prompt.strip():
+        system_content = system_prompt
+    else:
+        system_content = _load_prompt("chat.txt")
 
     messages = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": system_content},
         {"role": "user", "content": user_prompt},
     ]
 
