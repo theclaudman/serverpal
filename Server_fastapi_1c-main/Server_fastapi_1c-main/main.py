@@ -1,81 +1,77 @@
-# main.py
+# main.py — Дашборд ServerPal
 
-from database import init_db, get_user, username_exists, create_user, verify_password, decrypt_onec_password
+# ── Импорты (дедуплицированы) ─────────────────────────────────────────────────
+
 import base64
-import time
 import hashlib
+import json
+import logging
+import time
+import traceback
+import uvicorn
+
+from datetime import date, datetime, timedelta
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
+
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import FastAPI, HTTPException, Query, Request, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
 from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, settings
 from database import (
     init_db, get_user, username_exists, create_user,
     verify_password, decrypt_onec_password,
     get_all_prompts, get_prompt, update_prompt,
     get_templates, create_template, delete_template,
+    _fernet,
 )
-
-#import hmac
-import httpx
-import json
-import traceback
-from datetime import date, datetime, timedelta
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from pathlib import Path
-from urllib.parse import urlparse
-
-from fastapi import FastAPI, HTTPException, Query, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel
 from services.cache import get_cached, set_cached
-
-
-from config import PRICE_COLUMNS, SECRET_KEY, settings
-from database import init_db, get_user, username_exists, create_user
 from services.onec_client import (
-    fetch_nomenclature,
-    fetch_prices,
-    fetch_stocks,
-    fetch_reserves,
-    fetch_groups,
-    fetch_contragents,
-    fetch_cost_by_orders,
-    fetch_employees,
-    fetch_orders,
-    fetch_revenues,
-    fetch_payments,
-    fetch_debts,
-    fetch_events,
-    fetch_sales,
-    fetch_order_numbers,
+    fetch_nomenclature, fetch_prices, fetch_stocks, fetch_reserves,
+    fetch_groups, fetch_contragents, fetch_cost_by_orders,
+    fetch_employees, fetch_orders, fetch_revenues, fetch_payments,
+    fetch_debts, fetch_events, fetch_sales, fetch_order_numbers,
     set_credentials,
 )
-from services.data_builder import (
-    build_price_list,
-    build_groups_hierarchy,
-    get_unique_groups,
-)
+from services.data_builder import build_price_list, build_groups_hierarchy, get_unique_groups
 from services.dashboard_builder import build_managers_dashboard
 from services.sales_builder import build_sales_report
 from services.ai_client import chat as ai_chat
 from services.digest_client import get_providers, generate_digest, ask_question
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-from fastapi.middleware.cors import CORSMiddleware
-from cryptography.fernet import Fernet, InvalidToken
-import hashlib
-import uvicorn
-from database import _fernet
+
+
+# ── Pydantic-модели запросов ──────────────────────────────────────────────────
 
 class TemplateCreate(BaseModel):
     name: str
     content: str
 
+class ChatMessage(BaseModel):
+    prompt: str
+
+class DigestBody(BaseModel):
+    date: str = None
+    provider: str = "lmstudio"
+
+class AskBody(BaseModel):
+    question: str
+    provider: str = "lmstudio"
+
+class PromptUpdate(BaseModel):
+    content: str
 
 
+# ── Логирование ───────────────────────────────────────────────────────────────
 
-
-# Создаём папку для логов
 Path("logs").mkdir(exist_ok=True)
 
 logging.basicConfig(
@@ -85,7 +81,7 @@ logging.basicConfig(
         logging.StreamHandler(),
         RotatingFileHandler(
             "logs/dashboard.log",
-            maxBytes=10 * 1024 * 1024,  # 10 МБ
+            maxBytes=10 * 1024 * 1024,
             backupCount=5,
             encoding="utf-8",
         ),
@@ -94,11 +90,13 @@ logging.basicConfig(
 
 logger = logging.getLogger("dashboard")
 
+
+# ── Приложение ────────────────────────────────────────────────────────────────
+
 app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -109,31 +107,20 @@ app.add_middleware(
 )
 
 
-@app.get("/api/prompts/{prompt_id}/templates")
-async def api_get_templates(request: Request, prompt_id: str):
-    session, _ = require_session(request)
-    if not session:
-        return JSONResponse({"error": "Не авторизован"}, status_code=401)
-    return JSONResponse(get_templates(prompt_id))
+# ── Шаблоны ───────────────────────────────────────────────────────────────────
+
+CHAT_TEMPLATE_PATH      = Path("templates/chat.html")
+DIGEST_TEMPLATE_PATH    = Path("templates/digest.html")
+INDEX_TEMPLATE_PATH     = Path("templates/index.html")
+LOGIN_TEMPLATE_PATH     = Path("templates/login.html")
+REGISTER_TEMPLATE_PATH  = Path("templates/register.html")
+TEMPLATE_PATH           = Path("templates/price_list.html")
+DASHBOARD_TEMPLATE_PATH = Path("templates/managers_dashboard.html")
+SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
+PROMPTS_TEMPLATE_PATH   = Path("templates/prompts.html")
 
 
-@app.post("/api/prompts/{prompt_id}/templates")
-async def api_create_template(request: Request, prompt_id: str, body: TemplateCreate):
-    session, _ = require_session(request)
-    if not session:
-        return JSONResponse({"error": "Не авторизован"}, status_code=401)
-    tid = create_template(prompt_id, body.name, body.content)
-    logger.info(f"Шаблон '{body.name}' создан для промпта '{prompt_id}'")
-    return JSONResponse({"status": "ok", "id": tid})
-
-
-@app.delete("/api/prompts/templates/{template_id}")
-async def api_delete_template(request: Request, template_id: int):
-    session, _ = require_session(request)
-    if not session:
-        return JSONResponse({"error": "Не авторизован"}, status_code=401)
-    delete_template(template_id)
-    return JSONResponse({"status": "ok"})
+# ── Утилиты ───────────────────────────────────────────────────────────────────
 
 async def check_service(url: str, timeout: float = 5) -> bool:
     """Проверяет доступность внешнего сервиса."""
@@ -145,18 +132,19 @@ async def check_service(url: str, timeout: float = 5) -> bool:
         logger.error(f"check_service({url}) failed: {type(e).__name__}: {e}")
         return False
 
+
+# ── Глобальные обработчики ────────────────────────────────────────────────────
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
 
-    # Если API-запрос — вернуть JSON
     if request.url.path.startswith("/api/"):
         return JSONResponse(
             {"error": "Внутренняя ошибка сервера. Попробуйте позже."},
             status_code=500,
         )
 
-    # Если страница — вернуть HTML
     return HTMLResponse(
         content="""
         <html>
@@ -171,13 +159,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
     )
 
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration = round(time.time() - start, 3)
 
-    # Не логируем статику и health
     if not request.url.path.startswith("/static"):
         logger.info(
             f"{request.method} {request.url.path} → {response.status_code} ({duration}s) "
@@ -185,24 +173,17 @@ async def log_requests(request: Request, call_next):
         )
 
     return response
+
+
+# ── Инициализация БД ──────────────────────────────────────────────────────────
+
 init_db()
 
-CHAT_TEMPLATE_PATH      = Path("templates/chat.html")
-DIGEST_TEMPLATE_PATH    = Path("templates/digest.html")
-INDEX_TEMPLATE_PATH     = Path("templates/index.html")
-LOGIN_TEMPLATE_PATH     = Path("templates/login.html")
-REGISTER_TEMPLATE_PATH  = Path("templates/register.html")
-TEMPLATE_PATH           = Path("templates/price_list.html")
-DASHBOARD_TEMPLATE_PATH = Path("templates/managers_dashboard.html")
-SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
 
-
-# ── Сессионные cookie ────────────────────────────────────────────────────────
-
+# ── Сессионные cookie ─────────────────────────────────────────────────────────
 
 def _session_fernet() -> Fernet:
     """Fernet для шифрования cookie-сессий. Ключ из SECRET_KEY (32 байта → base64)."""
-
     key = hashlib.sha256(SECRET_KEY.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 
@@ -236,7 +217,7 @@ def require_session(request: Request):
     return session, None
 
 
-# ── Вспомогательные функции шаблонов ─────────────────────────────────────────
+# ── Вспомогательные функции шаблонов ──────────────────────────────────────────
 
 def _render_login(error: str = "", username: str = "") -> str:
     html = LOGIN_TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -261,10 +242,10 @@ def _render_register(error: str = "", username: str = "", onec_base_url: str = "
     return html
 
 
-# ── Авторизация ──────────────────────────────────────────────────────────────
+# ── Авторизация ───────────────────────────────────────────────────────────────
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
+async def login_page(request: Request):
     if get_session(request):
         return RedirectResponse(url="/", status_code=302)
     return HTMLResponse(content=_render_login())
@@ -285,7 +266,6 @@ async def login_submit(
             status_code=400,
         )
 
-    # Ищем пользователя в БД
     user = get_user(username)
     if not user:
         return HTMLResponse(
@@ -299,7 +279,6 @@ async def login_submit(
             status_code=401,
         )
 
-    # Проверяем подключение к 1С
     onec_base_url = user["onec_base_url"]
     set_credentials(onec_base_url, username, password)
     try:
@@ -321,7 +300,7 @@ async def login_submit(
         value=encode_session(session_data),
         httponly=True,
         samesite="lax",
-        max_age=60 * 60 * 12,  # 12 часов
+        max_age=60 * 60 * 12,
     )
     return response
 
@@ -329,7 +308,7 @@ async def login_submit(
 # ── Регистрация ───────────────────────────────────────────────────────────────
 
 @app.get("/register", response_class=HTMLResponse)
-def register_page(request: Request):
+async def register_page(request: Request):
     if get_session(request):
         return RedirectResponse(url="/", status_code=302)
     return HTMLResponse(content=_render_register())
@@ -368,7 +347,6 @@ async def register_submit(
             status_code=400,
         )
 
-    # Проверяем подключение к 1С перед сохранением
     set_credentials(onec_base_url, username, password)
     try:
         await fetch_employees()
@@ -384,7 +362,6 @@ async def register_submit(
 
     create_user(username, password, onec_base_url)
 
-    # Автоматически входим после регистрации
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
     session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
@@ -399,16 +376,16 @@ async def register_submit(
 
 
 @app.get("/logout")
-def logout():
+async def logout():
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie("session")
     return response
 
 
-# ── Страницы ─────────────────────────────────────────────────────────────────
+# ── Страницы ──────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-def get_index(request: Request):
+async def get_index(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
@@ -423,7 +400,6 @@ async def get_price_list(request: Request):
 
     cache_key = session["onec_base_url"]
 
-    # Пробуем из кэша
     cached = get_cached("price", cache_key, "price_list")
     if cached:
         price_list, groups_hierarchy, groups_list, price_columns = cached
@@ -561,7 +537,6 @@ async def get_sales_report(
         )
     except Exception as e:
         logger.error(f"Ошибка: {e}", exc_info=True)
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
     def fmt(d: str) -> str:
@@ -582,21 +557,15 @@ async def get_sales_report(
     return HTMLResponse(content=html)
 
 
-# ── ИИ-ассистент ─────────────────────────────────────────────────────────────
-
-class ChatMessage(BaseModel):
-    prompt: str
-
+# ── ИИ-ассистент ──────────────────────────────────────────────────────────────
 
 @app.get("/chat", response_class=HTMLResponse)
-def get_chat(request: Request):
+async def get_chat(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
     return HTMLResponse(content=CHAT_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
-
-# @app.post("/api/chat") — старая закомментированная версия удалена
 
 @app.post("/api/chat")
 @limiter.limit("20/minute")
@@ -632,21 +601,10 @@ async def post_chat(request: Request, body: ChatMessage):
     return JSONResponse({"answer": answer})
 
 
-
-# ── Финансовый дайджест ──────────────────────────────────────────────────────
-
-class DigestBody(BaseModel):
-    date: str = None
-    provider: str = "lmstudio"
-
-
-class AskBody(BaseModel):
-    question: str
-    provider: str = "lmstudio"
-
+# ── Финансовый дайджест ───────────────────────────────────────────────────────
 
 @app.get("/digest", response_class=HTMLResponse)
-def digest_page(request: Request):
+async def digest_page(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
@@ -660,7 +618,8 @@ async def api_digest_providers(request: Request):
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
     result = await get_providers()
     return JSONResponse(result)
-    
+
+
 @app.post("/api/digest")
 @limiter.limit("5/hour")
 async def api_digest(request: Request, body: DigestBody):
@@ -668,11 +627,11 @@ async def api_digest(request: Request, body: DigestBody):
     if not session:
         return JSONResponse({"error": "Не авторизован"}, status_code=401)
 
-    # if not await check_service(f"{DIGEST_SERVICE_URL}/health"):
-    #     return JSONResponse(
-    #         {"error": "Сервис дайджеста недоступен. Попробуйте позже."},
-    #         status_code=503,
-    #     )
+    if not await check_service(f"{DIGEST_SERVICE_URL}/health"):
+        return JSONResponse(
+            {"error": "Сервис дайджеста недоступен. Попробуйте позже."},
+            status_code=503,
+        )
 
     # Промпт из БД (если заполнен)
     digest_prompt = get_prompt("digest")
@@ -710,6 +669,8 @@ async def api_digest_ask(request: Request, body: AskBody):
     return JSONResponse(result)
 
 
+# ── Health ────────────────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health():
     ai_ok = await check_service(f"{AI_SERVICE_URL}/health")
@@ -724,8 +685,15 @@ async def health():
         }
     }
 
-class PromptUpdate(BaseModel):
-    content: str
+
+# ── Библиотека промптов ──────────────────────────────────────────────────────
+
+@app.get("/prompts", response_class=HTMLResponse)
+async def prompts_page(request: Request):
+    _, redirect = require_session(request)
+    if redirect:
+        return redirect
+    return HTMLResponse(content=PROMPTS_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
 @app.get("/api/prompts")
@@ -759,16 +727,35 @@ async def api_update_prompt(request: Request, prompt_id: str, body: PromptUpdate
     logger.info(f"Промпт '{prompt_id}' обновлён пользователем {session['user']}")
     return JSONResponse({"status": "ok"})
 
-PROMPTS_TEMPLATE_PATH = Path("templates/prompts.html")
 
-@app.get("/prompts", response_class=HTMLResponse)
-async def prompts_page(request: Request):
-    _, redirect = require_session(request)
-    if redirect:
-        return redirect
-    return HTMLResponse(content=PROMPTS_TEMPLATE_PATH.read_text(encoding="utf-8"))
+@app.get("/api/prompts/{prompt_id}/templates")
+async def api_get_templates(request: Request, prompt_id: str):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    return JSONResponse(get_templates(prompt_id))
 
+
+@app.post("/api/prompts/{prompt_id}/templates")
+async def api_create_template(request: Request, prompt_id: str, body: TemplateCreate):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    tid = create_template(prompt_id, body.name, body.content)
+    logger.info(f"Шаблон '{body.name}' создан для промпта '{prompt_id}'")
+    return JSONResponse({"status": "ok", "id": tid})
+
+
+@app.delete("/api/prompts/templates/{template_id}")
+async def api_delete_template(request: Request, template_id: int):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    delete_template(template_id)
+    return JSONResponse({"status": "ok"})
+
+
+# ── Запуск ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    
     uvicorn.run("main:app", host="0.0.0.0", port=9001, reload=True)
