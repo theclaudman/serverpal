@@ -16,9 +16,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
+import websockets
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import FastAPI, HTTPException, Query, Request, Form
+from fastapi import FastAPI, HTTPException, Query, Request, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -599,6 +600,69 @@ async def post_chat(request: Request, body: ChatMessage):
         return JSONResponse({"error": str(e)}, status_code=502)
 
     return JSONResponse({"answer": answer})
+
+
+@app.websocket("/ws/chat")
+async def ws_chat_proxy(websocket: WebSocket):
+    """
+    WebSocket прокси: браузер ↔ дашборд ↔ AI Bridge.
+    Дашборд добавляет credentials и system_prompt из сессии.
+    """
+    # Проверяем сессию через cookie
+    session = decode_session(websocket.cookies.get("session", ""))
+    if not session:
+        await websocket.close(code=4401, reason="Не авторизован")
+        return
+
+    await websocket.accept()
+
+    onec_password = decrypt_onec_password(session["password"])
+    _parsed = urlparse(session["onec_base_url"])
+    onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
+
+    # Промпт из БД
+    chat_prompt = get_prompt("chat")
+    system_prompt = chat_prompt["content"] if chat_prompt and chat_prompt["content"].strip() else ""
+
+    # URL AI Bridge WebSocket
+    ai_ws_url = AI_SERVICE_URL.replace("http://", "ws://").replace("https://", "wss://")
+    ai_ws_url = f"{ai_ws_url}/chat/ws"
+
+    try:
+        async with websockets.connect(ai_ws_url) as ai_ws:
+            while True:
+                # Получаем промпт от браузера
+                raw = await websocket.receive_text()
+                data = json.loads(raw)
+
+                # Дополняем credentials и system_prompt
+                data["credentials"] = {
+                    "login": session["user"],
+                    "password": onec_password,
+                    "ip": onec_ip,
+                }
+                data["system_prompt"] = system_prompt
+
+                # Отправляем в AI Bridge
+                await ai_ws.send(json.dumps(data, ensure_ascii=False))
+
+                # Проксируем ответы обратно в браузер
+                while True:
+                    response = await ai_ws.recv()
+                    await websocket.send_text(response)
+
+                    event = json.loads(response)
+                    if event.get("type") in ("done", "error"):
+                        break
+
+    except WebSocketDisconnect:
+        logger.info("WS чат: клиент отключился")
+    except Exception as e:
+        logger.error(f"WS чат ошибка: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
 
 
 # ── Финансовый дайджест ───────────────────────────────────────────────────────

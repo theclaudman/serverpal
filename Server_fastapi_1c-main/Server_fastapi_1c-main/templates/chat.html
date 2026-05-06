@@ -75,6 +75,14 @@
             color: var(--text-muted);
             font-weight: 400;
         }
+        .ws-status {
+            font-size: 0.7em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+        .ws-status.connected { background: rgba(74,222,128,0.15); color: var(--accent-green); }
+        .ws-status.disconnected { background: rgba(248,113,113,0.15); color: #f87171; }
 
         /* ── Лента сообщений ── */
         .messages {
@@ -178,6 +186,22 @@
         .msg-bubble pre code { background: none; padding: 0; }
         .msg-bubble strong { color: var(--text-primary); }
 
+        /* ── Индикатор инструмента ── */
+        .tool-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(167,139,250,0.1);
+            border: 1px solid rgba(167,139,250,0.2);
+            border-radius: 8px;
+            font-size: 0.8em;
+            color: var(--accent-purple);
+            margin: 4px 0;
+        }
+        .tool-indicator i { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
         /* ── Индикатор печатания ── */
         .typing-indicator {
             display: none;
@@ -207,6 +231,15 @@
             0%,80%,100% { opacity: 0.4; transform: scale(1); }
             40%          { opacity: 1;   transform: scale(1.3); }
         }
+
+        /* ── Курсор ── */
+        .streaming-cursor::after {
+            content: '▊';
+            animation: blink 0.8s step-end infinite;
+            color: var(--accent-purple);
+            margin-left: 1px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
 
         /* ── Панель ввода ── */
         .input-bar {
@@ -280,9 +313,10 @@
             <div class="topbar-icon"><i class="bi bi-stars"></i></div>
             <div>
                 ИИ-ассистент
-                <div class="topbar-subtitle">GigaChat · 1C AI Bridge</div>
+                <div class="topbar-subtitle">LLM · 1C AI Bridge</div>
             </div>
         </div>
+        <span class="ws-status disconnected" id="wsStatus">подключение...</span>
     </div>
 
     <!-- Лента сообщений -->
@@ -292,7 +326,6 @@
             <p>Задайте вопрос по вашей базе 1С — ИИ-ассистент ответит на основе ваших данных.</p>
         </div>
 
-        <!-- Индикатор печатания (вставляется в конец ленты) -->
         <div class="typing-indicator" id="typingIndicator">
             <div class="msg-avatar" style="background:rgba(167,139,250,0.15);color:var(--accent-purple);">
                 <i class="bi bi-stars"></i>
@@ -321,19 +354,24 @@
     </div>
 
 <script>
-    const messagesEl    = document.getElementById('messages');
-    const typingEl      = document.getElementById('typingIndicator');
-    const emptyStateEl  = document.getElementById('emptyState');
-    const inputEl       = document.getElementById('promptInput');
-    const sendBtn       = document.getElementById('sendBtn');
+    const messagesEl   = document.getElementById('messages');
+    const typingEl     = document.getElementById('typingIndicator');
+    const emptyStateEl = document.getElementById('emptyState');
+    const inputEl      = document.getElementById('promptInput');
+    const sendBtn      = document.getElementById('sendBtn');
+    const wsStatusEl   = document.getElementById('wsStatus');
 
-    // Автовысота textarea
+    let ws = null;
+    let isStreaming = false;
+    let currentBubble = null;       // <div class="msg-bubble"> в который стримим
+    let streamedContent = '';       // накопленный сырой текст
+
+    // ── Автовысота textarea ──
     inputEl.addEventListener('input', () => {
         inputEl.style.height = 'auto';
         inputEl.style.height = Math.min(inputEl.scrollHeight, 180) + 'px';
     });
 
-    // Enter — отправить, Shift+Enter — перенос
     inputEl.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -342,6 +380,21 @@
     });
 
     sendBtn.addEventListener('click', sendMessage);
+
+    // ── Утилиты ──
+
+    function escapeHtml(text) {
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setTyping(visible) {
+        typingEl.classList.toggle('visible', visible);
+        scrollToBottom();
+    }
 
     function appendMessage(role, html) {
         if (emptyStateEl) emptyStateEl.remove();
@@ -355,39 +408,145 @@
             </div>
             <div class="msg-bubble">${html}</div>
         `;
-        // Вставить перед индикатором печатания
         messagesEl.insertBefore(msg, typingEl);
         scrollToBottom();
+        return msg.querySelector('.msg-bubble');
     }
 
-    function setTyping(visible) {
-        typingEl.classList.toggle('visible', visible);
-        scrollToBottom();
+    function createStreamBubble() {
+        if (emptyStateEl) emptyStateEl.remove();
+
+        const msg = document.createElement('div');
+        msg.className = 'msg ai';
+        msg.innerHTML = `
+            <div class="msg-avatar">
+                <i class="bi bi-stars"></i>
+            </div>
+            <div class="msg-bubble streaming-cursor"></div>
+        `;
+        messagesEl.insertBefore(msg, typingEl);
+        return msg.querySelector('.msg-bubble');
     }
 
-    function scrollToBottom() {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+    // ── WebSocket ──
+
+    function connectWS() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${location.host}/ws/chat`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            wsStatusEl.textContent = 'подключён';
+            wsStatusEl.className = 'ws-status connected';
+        };
+
+        ws.onclose = (e) => {
+            wsStatusEl.textContent = 'отключён';
+            wsStatusEl.className = 'ws-status disconnected';
+            ws = null;
+
+            // Реконнект через 3 секунды
+            if (e.code !== 4401) {
+                setTimeout(connectWS, 3000);
+            }
+        };
+
+        ws.onerror = () => {
+            wsStatusEl.textContent = 'ошибка';
+            wsStatusEl.className = 'ws-status disconnected';
+        };
+
+        ws.onmessage = (e) => {
+            const event = JSON.parse(e.data);
+            handleStreamEvent(event);
+        };
     }
 
-    function escapeHtml(text) {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+    function handleStreamEvent(event) {
+        switch (event.type) {
+            case 'token':
+                setTyping(false);
+                if (!currentBubble) {
+                    currentBubble = createStreamBubble();
+                    streamedContent = '';
+                }
+                streamedContent += event.content;
+                // Рендерим markdown в реальном времени
+                currentBubble.innerHTML = marked.parse(streamedContent);
+                currentBubble.classList.add('streaming-cursor');
+                scrollToBottom();
+                break;
+
+            case 'tool':
+                setTyping(false);
+                if (!currentBubble) {
+                    currentBubble = createStreamBubble();
+                    streamedContent = '';
+                }
+                // Показываем индикатор инструмента
+                const toolHtml = `<div class="tool-indicator"><i class="bi bi-gear"></i> Запрашиваю данные из 1С...</div>`;
+                currentBubble.innerHTML = (streamedContent ? marked.parse(streamedContent) : '') + toolHtml;
+                currentBubble.classList.remove('streaming-cursor');
+                scrollToBottom();
+                break;
+
+            case 'tool_result':
+                // Убираем индикатор инструмента, стрим продолжится
+                if (currentBubble) {
+                    currentBubble.innerHTML = streamedContent ? marked.parse(streamedContent) : '';
+                    currentBubble.classList.add('streaming-cursor');
+                }
+                break;
+
+            case 'done':
+                if (currentBubble) {
+                    currentBubble.innerHTML = marked.parse(streamedContent || 'Не удалось получить ответ');
+                    currentBubble.classList.remove('streaming-cursor');
+                }
+                finishStream();
+                break;
+
+            case 'error':
+                setTyping(false);
+                if (currentBubble) {
+                    currentBubble.classList.remove('streaming-cursor');
+                }
+                appendMessage('ai', `<p style="color:#f87171;"><i class="bi bi-exclamation-circle"></i> Ошибка: ${escapeHtml(event.message || 'неизвестная ошибка')}</p>`);
+                finishStream();
+                break;
+        }
     }
+
+    function finishStream() {
+        isStreaming = false;
+        currentBubble = null;
+        streamedContent = '';
+        sendBtn.disabled = false;
+        inputEl.focus();
+    }
+
+    // ── Отправка сообщения ──
 
     async function sendMessage() {
         const prompt = inputEl.value.trim();
         if (!prompt || sendBtn.disabled) return;
 
-        // Показываем сообщение пользователя
         appendMessage('user', `<p>${escapeHtml(prompt)}</p>`);
         inputEl.value = '';
         inputEl.style.height = 'auto';
-
         sendBtn.disabled = true;
-        setTyping(true);
+        isStreaming = true;
 
+        // WebSocket — стриминг
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            setTyping(true);
+            ws.send(JSON.stringify({ prompt }));
+            return;
+        }
+
+        // Фолбэк на POST (если WS не подключён)
+        setTyping(true);
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -395,7 +554,6 @@
                 body: JSON.stringify({ prompt }),
             });
             const data = await res.json();
-
             setTyping(false);
 
             if (!res.ok || data.error) {
@@ -406,11 +564,12 @@
         } catch (err) {
             setTyping(false);
             appendMessage('ai', `<p style="color:#f87171;"><i class="bi bi-exclamation-circle"></i> Не удалось подключиться к сервису.</p>`);
-        } finally {
-            sendBtn.disabled = false;
-            inputEl.focus();
         }
+        finishStream();
     }
+
+    // ── Инициализация ──
+    connectWS();
 </script>
 
 </body>

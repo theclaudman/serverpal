@@ -4,6 +4,10 @@ ai_service.py — отправка запросов в LLM (Chat Completions API
 Совместим с LM Studio и любым OpenAI-совместимым провайдером.
 Поддерживает function calling: LLM может вызвать execute_1c_query,
 результат возвращается обратно в LLM для формирования ответа.
+
+Две функции:
+  answer_prompt()        — синхронный ответ целиком (для POST /chat/)
+  stream_answer_prompt() — генератор токенов для WebSocket стриминга
 """
 
 import json
@@ -83,7 +87,7 @@ TOOLS = [
 
 
 # =========================
-# 💬 CHAT
+# 💬 CHAT (синхронный)
 # =========================
 def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt: str = "") -> str:
     client = _get_client()
@@ -100,7 +104,6 @@ def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt:
     ]
 
     try:
-        # Первый вызов LLM
         response = client.chat.completions.create(
             model=settings.openai_model,
             messages=messages,
@@ -110,21 +113,16 @@ def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt:
             max_tokens=2048,
         )
 
-        # Tool loop — до 5 итераций
         for _ in range(settings.max_tool_iterations):
             msg = response.choices[0].message
 
-            # Если нет tool_calls — LLM дал финальный ответ
             if not msg.tool_calls:
                 return msg.content or "Не удалось получить ответ"
 
-            # Добавляем ответ LLM с tool_calls в историю
             messages.append(msg)
 
-            # Обрабатываем каждый tool call
             for tool_call in msg.tool_calls:
                 tool_name = tool_call.function.name
-
                 try:
                     args = json.loads(tool_call.function.arguments or "{}")
                 except Exception:
@@ -133,7 +131,6 @@ def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt:
 
                 logger.info(f"Tool call: {tool_name} | args: {args}")
 
-                # Выполняем инструмент
                 try:
                     if tool_name == "execute_1c_query":
                         result = _execute_1c_query(args, credentials)
@@ -143,14 +140,12 @@ def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt:
                     logger.exception(f"Ошибка выполнения {tool_name}")
                     result = {"status": "error", "message": str(e)}
 
-                # Добавляем результат tool в историю
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(result, ensure_ascii=False),
                 })
 
-            # Отправляем обратно в LLM с результатами tool
             response = client.chat.completions.create(
                 model=settings.openai_model,
                 messages=messages,
@@ -160,13 +155,146 @@ def answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt:
                 max_tokens=2048,
             )
 
-        # Если вышли из цикла — берём последний ответ
         final = response.choices[0].message.content
         return final or "Не удалось получить ответ"
 
     except Exception:
         logger.exception("Ошибка при работе с LLM")
         return "Ошибка обработки запроса. Проверьте что LLM сервер запущен."
+
+
+# =========================
+# 💬 CHAT (стриминг)
+# =========================
+def stream_answer_prompt(user_prompt: str, credentials: BaseCredentials, system_prompt: str = ""):
+    """
+    Генератор, yield-ит dict-события для WebSocket:
+      {"type": "token",  "content": "..."}     — очередной токен текста
+      {"type": "tool",   "name": "...", ...}    — начало вызова инструмента
+      {"type": "tool_result", "name": "..."}    — инструмент выполнен, стрим продолжается
+      {"type": "done"}                          — конец генерации
+      {"type": "error",  "message": "..."}      — ошибка
+    """
+    client = _get_client()
+
+    if system_prompt.strip():
+        system_content = system_prompt
+    else:
+        system_content = _load_prompt("chat.txt")
+
+    messages = [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    try:
+        for iteration in range(settings.max_tool_iterations + 1):
+            # Стриминговый запрос к LLM
+            stream = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                temperature=0.3,
+                max_tokens=2048,
+                stream=True,
+            )
+
+            # Собираем ответ из чанков
+            collected_content = ""
+            collected_tool_calls = {}  # index → {id, name, arguments}
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if not delta:
+                    continue
+
+                # Текстовый контент — стримим токен
+                if delta.content:
+                    collected_content += delta.content
+                    yield {"type": "token", "content": delta.content}
+
+                # Tool calls приходят по частям
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in collected_tool_calls:
+                            collected_tool_calls[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            collected_tool_calls[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                collected_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                collected_tool_calls[idx]["arguments"] += tc.function.arguments
+
+            # Если нет tool calls — генерация завершена
+            if not collected_tool_calls:
+                yield {"type": "done"}
+                return
+
+            # Есть tool calls — выполняем каждый
+            # Формируем assistant message с tool_calls для истории
+            tool_calls_list = []
+            for idx in sorted(collected_tool_calls.keys()):
+                tc = collected_tool_calls[idx]
+                tool_calls_list.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc["arguments"],
+                    },
+                })
+
+            assistant_msg = {
+                "role": "assistant",
+                "content": collected_content or None,
+                "tool_calls": tool_calls_list,
+            }
+            messages.append(assistant_msg)
+
+            # Выполняем каждый tool call
+            for tc_data in tool_calls_list:
+                tool_name = tc_data["function"]["name"]
+                try:
+                    args = json.loads(tc_data["function"]["arguments"] or "{}")
+                except Exception:
+                    args = {}
+
+                logger.info(f"[stream] Tool call: {tool_name} | args: {args}")
+                yield {"type": "tool", "name": tool_name}
+
+                try:
+                    if tool_name == "execute_1c_query":
+                        result = _execute_1c_query(args, credentials)
+                    else:
+                        result = {"error": f"Неизвестный инструмент: {tool_name}"}
+                except Exception as e:
+                    logger.exception(f"Ошибка выполнения {tool_name}")
+                    result = {"status": "error", "message": str(e)}
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc_data["id"],
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
+
+                yield {"type": "tool_result", "name": tool_name}
+
+            # Цикл продолжится — следующая итерация отправит результаты обратно в LLM
+
+        # Вышли из цикла — слишком много итераций
+        yield {"type": "token", "content": "\n\n(Достигнут лимит вызовов инструментов)"}
+        yield {"type": "done"}
+
+    except Exception as e:
+        logger.exception("Ошибка стриминга LLM")
+        yield {"type": "error", "message": str(e)}
 
 
 # =========================
