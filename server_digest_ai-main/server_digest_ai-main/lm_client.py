@@ -18,20 +18,35 @@ import os
 import json
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+def get_env_file() -> Path:
+    current = Path(__file__).resolve()
+    for candidate in (current.parent, *current.parents):
+        if (candidate / "run_all.py").exists():
+            root_env = candidate / ".env"
+            if root_env.exists():
+                return root_env
+    return current.parent / ".env"
+
+
+load_dotenv(get_env_file(), override=False)
+
 # ---------------------------------------------------------------------------
 # Конфигурация провайдеров
 # ---------------------------------------------------------------------------
 
 # LM Studio
-LMSTUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
-LMSTUDIO_MODEL    = "dolphin-2.9.4-llama3.1-8b"
+LMSTUDIO_BASE_URL = os.environ.get("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1")
+LMSTUDIO_MODEL    = os.environ.get("LMSTUDIO_MODEL", "dolphin-2.9.4-llama3.1-8b")
 
 # OpenAI
-OPENAI_BASE_URL   = "https://api.hydraai.ru/v1"
-OPENAI_MODEL      = "gpt-4o"
+OPENAI_BASE_URL   = os.environ.get("DIGEST_OPENAI_BASE_URL", "https://api.hydraai.ru/v1")
+OPENAI_MODEL      = os.environ.get("DIGEST_OPENAI_MODEL", "gpt-4o")
 
 # Таймаут запроса в секундах — локальная модель может думать долго
-REQUEST_TIMEOUT   = 120
+REQUEST_TIMEOUT   = int(os.environ.get("DIGEST_REQUEST_TIMEOUT", "120"))
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +138,7 @@ def _get_openai_key() -> str:
         return key
 
     # 2. .env файл
-    env_path = Path(__file__).parent / ".env"
+    env_path = get_env_file()
     if env_path.exists():
         with open(env_path, encoding="utf-8") as f:
             for line in f:

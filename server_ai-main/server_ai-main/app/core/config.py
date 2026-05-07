@@ -2,8 +2,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 
+def get_env_file() -> Path:
+    current = Path(__file__).resolve()
+    for candidate in (current.parent, *current.parents):
+        if (candidate / "run_all.py").exists():
+            root_env = candidate / ".env"
+            if root_env.exists():
+                return root_env
+    return current.parent / ".env"
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=get_env_file(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # LLM (OpenAI-совместимый API — LM Studio, OpenAI, и др.)
     openai_api_key: str = "lm-studio"

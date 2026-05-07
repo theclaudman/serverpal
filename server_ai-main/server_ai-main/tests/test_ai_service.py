@@ -6,6 +6,8 @@ import pytest
 from app.models.schemas import BaseCredentials
 from app.services.ai_service import answer_prompt, generate_report
 
+pytestmark = pytest.mark.integration
+
 
 class TestAnswerPromptSimple:
     """Запросы, не требующие обращения к базе 1С."""

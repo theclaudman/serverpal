@@ -6,6 +6,8 @@ import pytest
 from app.models.schemas import BaseCredentials
 from app.services.onec_service import execute_query
 
+pytestmark = pytest.mark.integration
+
 
 def test_execute_query_success(onec_credentials: BaseCredentials):
     """Простой SELECT-запрос возвращает непустой результат."""
@@ -27,22 +29,26 @@ def test_execute_query_returns_counterparties(onec_credentials: BaseCredentials)
 
 
 def test_execute_query_bad_credentials():
-    """Неверные учётные данные вызывают RuntimeError."""
+    """Неверные учётные данные возвращают структурированную ошибку."""
     bad_creds = BaseCredentials(
         ip="127.0.0.1/unf_dashboard",
         login="НеверныйПользователь",
         password="НеверныйПароль",
     )
-    with pytest.raises(RuntimeError):
-        execute_query(bad_creds, "ВЫБРАТЬ 1")
+    result = execute_query(bad_creds, "ВЫБРАТЬ 1")
+
+    assert result["status"] == "error"
+    assert result["type"] in {"http_error", "connection_error"}
 
 
 def test_execute_query_bad_host():
-    """Недоступный хост вызывает RuntimeError."""
+    """Недоступный хост возвращает структурированную ошибку."""
     bad_creds = BaseCredentials(
         ip="192.0.2.1/nonexistent",  # TEST-NET, гарантированно недоступен
         login="Администратор",
         password="",
     )
-    with pytest.raises(RuntimeError, match="Не удалось подключиться"):
-        execute_query(bad_creds, "ВЫБРАТЬ 1")
+    result = execute_query(bad_creds, "ВЫБРАТЬ 1")
+
+    assert result["status"] == "error"
+    assert result["type"] == "connection_error"

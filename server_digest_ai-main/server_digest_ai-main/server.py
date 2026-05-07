@@ -14,9 +14,23 @@ server.py — FastAPI-приложение Digest API
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+
+def get_env_file() -> Path:
+    current = Path(__file__).resolve()
+    for candidate in (current.parent, *current.parents):
+        if (candidate / "run_all.py").exists():
+            root_env = candidate / ".env"
+            if root_env.exists():
+                return root_env
+    return current.parent / ".env"
+
+
+load_dotenv(get_env_file(), override=False)
 
 from api_models import (
     DigestRequest, AskRequest,

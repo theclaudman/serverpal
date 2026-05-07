@@ -1,7 +1,23 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
+def get_env_file() -> Path:
+    current = Path(__file__).resolve()
+    for candidate in (current.parent, *current.parents):
+        if (candidate / "run_all.py").exists():
+            root_env = candidate / ".env"
+            if root_env.exists():
+                return root_env
+    return current.parent / ".env"
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=get_env_file(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
     secret_key: str = "CHANGE-ME"
     encryption_key: str = ""
     ai_service_url: str = "http://127.0.0.1:8001"

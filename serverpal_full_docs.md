@@ -97,13 +97,13 @@
 ```
 Serverpal/
 ├── run_all.py                          # Единый запуск всех 3 сервисов
-├── .env                                # (в папке дашборда, не в корне)
+├── .env                                # единый локальный env в корне (не в git)
+├── .env.example                        # шаблон без секретов
 │
 ├── Server_fastapi_1c-main/Server_fastapi_1c-main/
 │   ├── main.py                         # Дашборд — все роуты
 │   ├── config.py                       # Настройки из .env
 │   ├── database.py                     # SQLite: пользователи, промпты, шаблоны
-│   ├── .env                            # SECRET_KEY, ENCRYPTION_KEY, URLs, порты
 │   ├── templates/                      # HTML-шаблоны (chat, digest, prompts и др.)
 │   └── services/
 │       ├── ai_client.py                # HTTP-клиент к AI Bridge (httpx async)
@@ -151,17 +151,22 @@ Serverpal/
 
 ---
 
-## 4. .env дашборда
+## 4. Единый .env
 
 ```
-SECRET_KEY=<зашифрованный ключ>
+SECRET_KEY=<ключ cookie-сессии>
 ENCRYPTION_KEY=<ключ Fernet>
 AI_SERVICE_URL=http://127.0.0.1:8001
 DIGEST_SERVICE_URL=http://127.0.0.1:8002
 PRICE_TYPE_RETAIL=<GUID из 1С>
 PRICE_TYPE_WHOLESALE=<GUID из 1С>
 ALLOWED_ORIGINS=http://127.0.0.1:9001,http://127.0.0.1:8002,http://127.0.0.1:8001
+OPENAI_API_KEY=lm-studio
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_MODEL=dolphin-2.9.4-llama3.1-8b
 ```
+
+Все сервисы читают один корневой `.env`. Для Docker этот же файл будет использоваться `docker-compose`.
 
 ---
 
