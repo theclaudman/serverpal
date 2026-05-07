@@ -1,10 +1,11 @@
 import sqlite3
 import bcrypt
+import os
 from pathlib import Path
 from cryptography.fernet import Fernet
 from config import settings
 
-DB_PATH = Path("users.db")
+DB_PATH = Path(os.environ.get("DASHBOARD_DB_PATH", "users.db"))
 
 
 def _fernet() -> Fernet:

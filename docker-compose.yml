@@ -1,0 +1,87 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Server_fastapi_1c-main/Server_fastapi_1c-main/Dockerfile
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-change-me-generate-long-random-string}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-me-fernet-key}
+      AI_SERVICE_URL: http://ai-bridge:8001
+      DIGEST_SERVICE_URL: http://digest-api:8002
+      PRICE_TYPE_RETAIL: ${PRICE_TYPE_RETAIL:-00000000-0000-0000-0000-000000000000}
+      PRICE_TYPE_WHOLESALE: ${PRICE_TYPE_WHOLESALE:-00000000-0000-0000-0000-000000000000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:9001}
+      DASHBOARD_DB_PATH: /data/users.db
+    ports:
+      - "9001:9001"
+    volumes:
+      - dashboard_data:/data
+      - dashboard_logs:/app/logs
+    depends_on:
+      ai-bridge:
+        condition: service_healthy
+      digest-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ai-bridge:
+    build:
+      context: .
+      dockerfile: server_ai-main/server_ai-main/Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:1234/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-dolphin-2.9.4-llama3.1-8b}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-change-me}
+      MAX_TOOL_ITERATIONS: ${MAX_TOOL_ITERATIONS:-5}
+      DATA_DIR: /data/connected_bases
+      LOGS_DIR: /app/logs
+      KNOWLEDGE_BASE_FILE: knowledge_base.txt
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ai_data:/data
+      - ai_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  digest-api:
+    build:
+      context: .
+      dockerfile: server_digest_ai-main/server_digest_ai-main/Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-lm-studio}
+      DIGEST_OPENAI_BASE_URL: ${DIGEST_OPENAI_BASE_URL:-https://api.hydraai.ru/v1}
+      DIGEST_OPENAI_MODEL: ${DIGEST_OPENAI_MODEL:-gpt-4o}
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_MODEL: ${LMSTUDIO_MODEL:-dolphin-2.9.4-llama3.1-8b}
+      DIGEST_REQUEST_TIMEOUT: ${DIGEST_REQUEST_TIMEOUT:-120}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:9001}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - digest_data:/app/data
+      - digest_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  dashboard_data:
+  dashboard_logs:
+  ai_data:
+  ai_logs:
+  digest_data:
+  digest_logs:

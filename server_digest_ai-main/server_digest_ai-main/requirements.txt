@@ -1,7 +1,6 @@
 fastapi
-uvicorn
+uvicorn[standard]
 requests
 pyyaml
 pydantic
 python-dotenv
-pyyaml
