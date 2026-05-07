@@ -136,33 +136,50 @@ async def check_service(url: str, timeout: float = 5) -> bool:
 
 # ── Глобальные обработчики ────────────────────────────────────────────────────
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
+# @app.exception_handler(Exception)
+# async def global_exception_handler(request: Request, exc: Exception):
+#     logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
 
-    if request.url.path.startswith("/api/"):
-        return JSONResponse(
-            {"error": "Внутренняя ошибка сервера. Попробуйте позже."},
-            status_code=500,
-        )
+#     if request.url.path.startswith("/api/"):
+#         return JSONResponse(
+#             {"error": "Внутренняя ошибка сервера. Попробуйте позже."},
+#             status_code=500,
+#         )
 
-    return HTMLResponse(
-        content="""
-        <html>
-        <head><title>Ошибка</title></head>
-        <body style="font-family:Arial; padding:40px; background:#1a1a2e; color:#eee;">
-            <h1>⚠️ Произошла ошибка</h1>
-            <p>Сервер столкнулся с непредвиденной ситуацией.</p>
-            <p>Попробуйте обновить страницу или вернуться на <a href="/" style="color:#4fc3f7;">главную</a>.</p>
-        </body>
-        </html>
-        """,
-        status_code=500,
-    )
+#     return HTMLResponse(
+#         content="""
+#         <html>
+#         <head><title>Ошибка</title></head>
+#         <body style="font-family:Arial; padding:40px; background:#1a1a2e; color:#eee;">
+#             <h1>⚠️ Произошла ошибка</h1>
+#             <p>Сервер столкнулся с непредвиденной ситуацией.</p>
+#             <p>Попробуйте обновить страницу или вернуться на <a href="/" style="color:#4fc3f7;">главную</a>.</p>
+#         </body>
+#         </html>
+#         """,
+#         status_code=500,
+#     )
 
 
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     start = time.time()
+#     response = await call_next(request)
+#     duration = round(time.time() - start, 3)
+
+#     if not request.url.path.startswith("/static"):
+#         logger.info(
+#             f"{request.method} {request.url.path} → {response.status_code} ({duration}s) "
+#             f"IP={request.client.host}"
+#         )
+
+#     return response
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    # Пропускаем WebSocket — middleware("http") ломает upgrade
+    if request.headers.get("upgrade", "").lower() == "websocket":
+        return await call_next(request)
+
     start = time.time()
     response = await call_next(request)
     duration = round(time.time() - start, 3)
@@ -174,7 +191,7 @@ async def log_requests(request: Request, call_next):
         )
 
     return response
-
+    
 
 # ── Инициализация БД ──────────────────────────────────────────────────────────
 
@@ -609,6 +626,12 @@ async def ws_chat_proxy(websocket: WebSocket):
     Дашборд добавляет credentials и system_prompt из сессии.
     """
     # Проверяем сессию через cookie
+
+    cookie = websocket.cookies.get("session", "")
+    logger.info(f"WS /ws/chat: cookie={'есть' if cookie else 'НЕТ'}")
+    session = decode_session(cookie)
+    logger.info(f"WS /ws/chat: session={'есть' if session else 'НЕТ'}")
+
     session = decode_session(websocket.cookies.get("session", ""))
     if not session:
         await websocket.close(code=4401, reason="Не авторизован")
@@ -822,4 +845,5 @@ async def api_delete_template(request: Request, template_id: int):
 # ── Запуск ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # uvicorn.run("main:app", host="0.0.0.0", port=9001, reload=True)
     uvicorn.run("main:app", host="0.0.0.0", port=9001, reload=False)

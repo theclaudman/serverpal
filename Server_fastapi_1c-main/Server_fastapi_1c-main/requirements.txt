@@ -1,5 +1,12 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
 cachetools
 requests
+httpx
+websockets
+slowapi
+cryptography
+bcrypt
+pydantic-settings
+python-dotenv
