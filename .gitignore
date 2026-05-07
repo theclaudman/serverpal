@@ -2,6 +2,7 @@
 .env
 .env.test
 tests/.env.test
+.env.local
 .venv/
 venv/
 __pycache__/
@@ -12,6 +13,16 @@ __pycache__/
 data/
 logs/
 bases_registry.json
+users.db
+*.db
+.pytest_cache/
+pytest-cache-files-*/
+.smoke-logs/
+
+# Временные резервные файлы
+* old.py
+*_backup.py
+*.bak
 
 # IDE
 .idea/
@@ -21,9 +32,3 @@ bases_registry.json
 # OS
 .DS_Store
 Thumbs.db
-
-.env
-users.db
-__pycache__/
-
-logs/
