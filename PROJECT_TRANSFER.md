@@ -40,6 +40,7 @@ Implemented:
 - AI Bridge and Digest API require `X-Service-API-Key` on internal routes.
 - LLM-generated 1C queries are validated as read-only before execution.
 - Dashboard cookie security is configurable through `COOKIE_SECURE` and `COOKIE_SAMESITE`.
+- Dashboard registration is closed by default through `REGISTRATION_ENABLED=false`; optional token access uses `REGISTRATION_TOKEN` and `/register?token=<token>`.
 - Smoke check for starting all three services.
 - Fast pytest default: unit tests run, integration tests are skipped unless explicitly enabled.
 
@@ -66,6 +67,8 @@ ALLOWED_ORIGINS=http://127.0.0.1:9001,http://127.0.0.1:8001,http://127.0.0.1:800
 SERVICE_API_KEY=<shared internal service key>
 COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
+REGISTRATION_ENABLED=false
+REGISTRATION_TOKEN=
 ```
 
 For Docker local with LM Studio on the host, use:
@@ -336,4 +339,4 @@ OK
 
 Важно: я создал локальный корневой .env из .env.example для проверок и поставил туда SERVICE_API_KEY=dev-local-service-key. Файл игнорируется git и не будет закоммичен. Перед реальным production надо заменить ключи/секреты/ценовые GUID на настоящие.
 
-Следующий шаг по порядку: registration guard для /register, чтобы в production нельзя было любому пользователю открыть регистрацию и добавить клиента.
+Registration guard для /register добавлен. Следующий практичный шаг: почистить mojibake/кодировку в handoff и Python-файлах, затем удалить мёртвый закомментированный execute_query из onec_service.py.

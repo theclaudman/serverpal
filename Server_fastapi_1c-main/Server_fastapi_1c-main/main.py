@@ -4,6 +4,7 @@
 
 import base64
 import hashlib
+import html as html_lib
 import json
 import logging
 import time
@@ -239,10 +240,17 @@ def _render_login(error: str = "", username: str = "") -> str:
     )
     html = html.replace("/*@@ERROR_BLOCK@@*/", error_block)
     html = html.replace("/*@@USERNAME@@*/",    username)
+    if not settings.registration_enabled:
+        start = "<!-- @@REGISTER_LINK_START@@ -->"
+        end = "<!-- @@REGISTER_LINK_END@@ -->"
+        if start in html and end in html:
+            before, rest = html.split(start, 1)
+            _, after = rest.split(end, 1)
+            html = before + after
     return html
 
 
-def _render_register(error: str = "", username: str = "", onec_base_url: str = "") -> str:
+def _render_register(error: str = "", username: str = "", onec_base_url: str = "", registration_token: str = "") -> str:
     html = REGISTER_TEMPLATE_PATH.read_text(encoding="utf-8")
     error_block = (
         f'<div class="error-msg"><i class="bi bi-exclamation-circle"></i>{error}</div>'
@@ -251,7 +259,19 @@ def _render_register(error: str = "", username: str = "", onec_base_url: str = "
     html = html.replace("/*@@ERROR_BLOCK@@*/",   error_block)
     html = html.replace("/*@@USERNAME@@*/",       username)
     html = html.replace("/*@@ONEC_BASE_URL@@*/",  onec_base_url)
+    if registration_token:
+        html = html.replace(
+            '<form method="post" action="/register">',
+            f'<form method="post" action="/register">\n            <input type="hidden" name="registration_token" value="{html_lib.escape(registration_token, quote=True)}">',
+        )
     return html
+
+
+def _registration_allowed(token: str = "") -> bool:
+    if settings.registration_enabled:
+        return True
+    expected_token = settings.registration_token.strip()
+    return bool(expected_token and token and token == expected_token)
 
 
 # ── Авторизация ───────────────────────────────────────────────────────────────
@@ -314,10 +334,12 @@ async def login_submit(
 # ── Регистрация ───────────────────────────────────────────────────────────────
 
 @app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
+async def register_page(request: Request, token: str = Query(default="")):
     if get_session(request):
         return RedirectResponse(url="/", status_code=302)
-    return HTMLResponse(content=_render_register())
+    if not _registration_allowed(token):
+        return RedirectResponse(url="/login", status_code=302)
+    return HTMLResponse(content=_render_register(registration_token=token))
 
 
 @app.post("/register")
@@ -327,7 +349,11 @@ async def register_submit(
     onec_base_url: str = Form(...),
     username:      str = Form(...),
     password:      str = Form(default=""),
+    registration_token: str = Form(default=""),
 ):
+    if not _registration_allowed(registration_token):
+        return JSONResponse({"error": "Registration is disabled"}, status_code=403)
+
     onec_base_url = onec_base_url.strip().rstrip("/")
     if not onec_base_url.startswith("http://") and not onec_base_url.startswith("https://"):
         onec_base_url = "http://" + onec_base_url

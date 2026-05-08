@@ -29,6 +29,8 @@ Use `127.0.0.1`, not `localhost`, for local checks. Anti-detect browsers can bre
 
 The root `.env` is required. Service-local `.env` files are not used as fallback in the hardened configuration.
 
+Registration is closed by default. For local onboarding, either set `REGISTRATION_ENABLED=true`, or set `REGISTRATION_TOKEN` and open `/register?token=<token>`.
+
 ## Checks
 
 Fast local smoke check for all services:

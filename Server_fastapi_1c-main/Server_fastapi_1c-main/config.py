@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://127.0.0.1:9001"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
+    registration_enabled: bool = False
+    registration_token: str = ""
     
     @property
     def price_columns(self) -> dict:
