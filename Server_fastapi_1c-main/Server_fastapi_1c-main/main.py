@@ -125,6 +125,7 @@ TEMPLATE_PATH           = Path("templates/price_list.html")
 DASHBOARD_TEMPLATE_PATH = Path("templates/managers_dashboard.html")
 SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
 PROMPTS_TEMPLATE_PATH   = Path("templates/prompts.html")
+ACCOUNT_SETTINGS_TEMPLATE_PATH = Path("templates/account_settings.html")
 
 
 # ── Утилиты ───────────────────────────────────────────────────────────────────
@@ -482,6 +483,14 @@ async def get_index(request: Request):
     if redirect:
         return redirect
     return HTMLResponse(content=INDEX_TEMPLATE_PATH.read_text(encoding="utf-8"))
+
+
+@app.get("/account/settings", response_class=HTMLResponse)
+async def get_account_settings(request: Request):
+    _, redirect = require_session(request)
+    if redirect:
+        return redirect
+    return HTMLResponse(content=ACCOUNT_SETTINGS_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
 
 @app.get("/price-list", response_class=HTMLResponse)

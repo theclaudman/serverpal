@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки клиента — ServerPal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --bg-body: #0f0f1a;
+            --bg-panel: rgba(255,255,255,0.03);
+            --bg-secondary: rgba(255,255,255,0.05);
+            --text-primary: #e4e4e4;
+            --text-muted: #888;
+            --border-color: rgba(255,255,255,0.06);
+            --border-light: rgba(255,255,255,0.1);
+            --accent-green: #4ade80;
+            --accent-blue: #60a5fa;
+            --accent-red: #f87171;
+            --primary-gradient: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: var(--text-primary);
+            background: var(--bg-body);
+            margin: 0;
+            min-height: 100vh;
+            padding: 32px 20px;
+        }
+        .page {
+            width: 100%;
+            max-width: 860px;
+            margin: 0 auto;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            font-size: 0.9em;
+        }
+        .back-link:hover {
+            color: var(--accent-green);
+            border-color: rgba(74,222,128,0.35);
+        }
+        h1 {
+            margin: 0;
+            color: var(--accent-green);
+            font-size: 1.8em;
+        }
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 28px;
+        }
+        .section-title {
+            margin: 0 0 6px;
+            font-size: 1.05em;
+            font-weight: 650;
+        }
+        .section-note {
+            color: var(--text-muted);
+            margin: 0 0 22px;
+            line-height: 1.5;
+            font-size: 0.92em;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.78em;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .input-wrapper {
+            position: relative;
+        }
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95em;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: 0 0 0 3px rgba(74,222,128,0.1);
+        }
+        .field-hint {
+            color: var(--text-muted);
+            font-size: 0.8em;
+            margin-top: 7px;
+        }
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary-gradient);
+            color: #0b0f0d;
+            font-weight: 650;
+            cursor: pointer;
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+        .status {
+            min-height: 22px;
+            font-size: 0.9em;
+            color: var(--text-muted);
+        }
+        .status.ok { color: var(--accent-green); }
+        .status.error { color: var(--accent-red); }
+        .effective {
+            margin-top: 28px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border-color);
+        }
+        .effective-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .effective-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+        }
+        .effective-name {
+            color: var(--accent-blue);
+            white-space: nowrap;
+        }
+        .effective-guid {
+            color: var(--text-muted);
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+            overflow-wrap: anywhere;
+            text-align: right;
+        }
+        .empty {
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+        @media (max-width: 640px) {
+            body { padding: 20px 14px; }
+            .topbar { align-items: flex-start; flex-direction: column-reverse; }
+            .panel { padding: 20px; }
+            .effective-item { flex-direction: column; gap: 4px; }
+            .effective-guid { text-align: left; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="topbar">
+            <div>
+                <h1><i class="bi bi-sliders"></i> Настройки клиента</h1>
+            </div>
+            <a class="back-link" href="/"><i class="bi bi-arrow-left"></i> На главную</a>
+        </div>
+
+        <section class="panel">
+            <p class="section-title">Виды цен для прайс-листа</p>
+            <p class="section-note">Укажите GUID видов цен из текущей базы 1С. Если поле пустое, приложение попробует использовать fallback из корневого .env.</p>
+
+            <form id="settings-form">
+                <div class="form-grid">
+                    <div>
+                        <label class="form-label" for="price-type-retail">Розничная цена</label>
+                        <div class="input-wrapper">
+                            <i class="bi bi-tag input-icon"></i>
+                            <input id="price-type-retail" class="form-input" name="price_type_retail" type="text" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
+                        </div>
+                        <div class="field-hint">GUID вида розничной цены в 1С.</div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="price-type-wholesale">Оптовая цена</label>
+                        <div class="input-wrapper">
+                            <i class="bi bi-tags input-icon"></i>
+                            <input id="price-type-wholesale" class="form-input" name="price_type_wholesale" type="text" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
+                        </div>
+                        <div class="field-hint">GUID вида оптовой цены в 1С.</div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="save-btn" class="btn" type="submit">
+                        <i class="bi bi-check2"></i> Сохранить
+                    </button>
+                    <span id="status" class="status"></span>
+                </div>
+            </form>
+
+            <div class="effective">
+                <p class="section-title">Активные колонки прайс-листа</p>
+                <div id="effective-list" class="effective-list">
+                    <span class="empty">Загрузка...</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const form = document.getElementById('settings-form');
+        const retailInput = document.getElementById('price-type-retail');
+        const wholesaleInput = document.getElementById('price-type-wholesale');
+        const statusEl = document.getElementById('status');
+        const saveBtn = document.getElementById('save-btn');
+        const effectiveList = document.getElementById('effective-list');
+        const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+        function setStatus(message, type = '') {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function validateGuid(value, label) {
+            const normalized = value.trim();
+            if (!normalized) return '';
+            if (!guidPattern.test(normalized)) {
+                throw new Error(`${label}: ожидается GUID в формате 00000000-0000-0000-0000-000000000000`);
+            }
+            return normalized;
+        }
+
+        function renderEffective(columns) {
+            const entries = Object.entries(columns || {});
+            if (!entries.length) {
+                effectiveList.innerHTML = '<span class="empty">Нет активных видов цен. Заполните GUID или настройте fallback в .env.</span>';
+                return;
+            }
+            effectiveList.innerHTML = entries.map(([guid, name]) => `
+                <div class="effective-item">
+                    <span class="effective-name">${name}</span>
+                    <span class="effective-guid">${guid}</span>
+                </div>
+            `).join('');
+        }
+
+        async function loadSettings() {
+            setStatus('Загрузка...');
+            const response = await fetch('/api/account/settings');
+            if (!response.ok) throw new Error('Не удалось загрузить настройки');
+            const data = await response.json();
+            retailInput.value = data.price_type_retail || '';
+            wholesaleInput.value = data.price_type_wholesale || '';
+            renderEffective(data.effective_price_types);
+            setStatus('');
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const payload = {
+                    price_type_retail: validateGuid(retailInput.value, 'Розничная цена'),
+                    price_type_wholesale: validateGuid(wholesaleInput.value, 'Оптовая цена'),
+                };
+
+                saveBtn.disabled = true;
+                setStatus('Сохранение...');
+                const response = await fetch('/api/account/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) throw new Error('Не удалось сохранить настройки');
+
+                await loadSettings();
+                setStatus('Сохранено', 'ok');
+            } catch (error) {
+                setStatus(error.message || 'Ошибка сохранения', 'error');
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
+
+        loadSettings().catch((error) => setStatus(error.message || 'Ошибка загрузки', 'error'));
+    </script>
+</body>
+</html>

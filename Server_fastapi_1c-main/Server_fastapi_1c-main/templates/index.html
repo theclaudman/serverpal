@@ -19,6 +19,7 @@
             --accent-orange: #fb923c;
             --accent-purple: #a78bfa;
             --accent-cyan: #22d3ee;
+            --accent-red: #f87171;
             --primary-gradient: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
         }
         * { box-sizing: border-box; }
@@ -133,6 +134,7 @@
         .card-orange { --card-accent: var(--accent-orange); --icon-bg: rgba(251,146,60,0.1);  --icon-color: var(--accent-orange); }
         .card-purple { --card-accent: var(--accent-purple); --icon-bg: rgba(167,139,250,0.1); --icon-color: var(--accent-purple); }
         .card-cyan   { --card-accent: var(--accent-cyan);   --icon-bg: rgba(34,211,238,0.1);  --icon-color: var(--accent-cyan); }
+        .card-red    { --card-accent: var(--accent-red);    --icon-bg: rgba(248,113,113,0.1); --icon-color: var(--accent-red); }
     </style>
 </head>
 <body>
@@ -176,6 +178,12 @@
             <p class="card-title">ИИ-ассистент</p>
             <p class="card-desc">Задавайте вопросы по данным вашей базы 1С — ответы генерирует GigaChat на основе реальных данных.</p>
             <span class="card-url">/chat</span>
+        </a>
+        <a href="/account/settings" class="card card-red">
+            <div class="card-icon"><i class="bi bi-sliders"></i></div>
+            <p class="card-title">Настройки клиента</p>
+            <p class="card-desc">GUID видов розничной и оптовой цены для текущей базы 1С. Эти значения используются при построении прайс-листа.</p>
+            <span class="card-url">/account/settings</span>
         </a>
     </div>
 </body>
