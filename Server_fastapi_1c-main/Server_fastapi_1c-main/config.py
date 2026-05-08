@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ai_service_url: str = "http://127.0.0.1:8001"
     digest_service_url: str = "http://127.0.0.1:8002"
     service_api_key: str = ""
+    dashboard_db_path: str = "users.db"
     price_type_retail: str = "55a36684-62bc-11f0-89d6-d8625b865b03"
     price_type_wholesale: str = "05baa3c2-5ea9-11f0-aa16-10ffe0a68931"
     allowed_origins: str = "http://127.0.0.1:9001"

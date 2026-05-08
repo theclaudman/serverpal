@@ -1,14 +1,18 @@
 """
 Единый запуск всех сервисов ServerPal.
-Использование: python run_all.py
-Остановка: Ctrl+C — остановит все три сервиса.
+
+Использование:
+  python run_all.py
+
+Остановка:
+  Ctrl+C останавливает все три сервиса.
 """
 
+import os
 import subprocess
 import sys
-import os
-import signal
 import time
+
 
 SERVICES = [
     {
@@ -20,8 +24,16 @@ SERVICES = [
     {
         "name": "AI Bridge (8001)",
         "cwd": "server_ai-main/server_ai-main",
-        "cmd": [sys.executable, "-m", "uvicorn", "app.main:app",
-                "--host", "127.0.0.1", "--port", "8001"],
+        "cmd": [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8001",
+        ],
     },
     {
         "name": "Dashboard (9001)",
@@ -35,14 +47,14 @@ processes = []
 
 def start_all():
     print("=" * 50)
-    print("  ServerPal — запуск всех сервисов")
+    print("  ServerPal - запуск всех сервисов")
     print("=" * 50)
 
     for svc in SERVICES:
         cwd = os.path.join(os.path.dirname(__file__), svc["cwd"])
 
         if not os.path.exists(cwd):
-            print(f"  ✗ {svc['name']} — папка не найдена: {cwd}")
+            print(f"  [ERROR] {svc['name']} - папка не найдена: {cwd}")
             continue
 
         env = os.environ.copy()
@@ -56,7 +68,7 @@ def start_all():
             env=env,
         )
         processes.append((svc["name"], proc))
-        print(f"  ✓ {svc['name']} запущен (PID {proc.pid})")
+        print(f"  [OK] {svc['name']} запущен (PID {proc.pid})")
 
     print("=" * 50)
     print("  Все сервисы запущены. Ctrl+C для остановки.")
@@ -69,20 +81,19 @@ def stop_all():
         try:
             proc.terminate()
             proc.wait(timeout=5)
-            print(f"  ✓ {name} остановлен")
+            print(f"  [OK] {name} остановлен")
         except Exception:
             proc.kill()
-            print(f"  ✗ {name} убит принудительно")
+            print(f"  [ERROR] {name} завершён принудительно")
 
 
 if __name__ == "__main__":
     try:
         start_all()
-        # Ждём пока все процессы работают
         while True:
             for name, proc in processes:
                 if proc.poll() is not None:
-                    print(f"\n  ✗ {name} упал с кодом {proc.returncode}")
+                    print(f"\n  [ERROR] {name} завершился с кодом {proc.returncode}")
             time.sleep(2)
     except KeyboardInterrupt:
         stop_all()

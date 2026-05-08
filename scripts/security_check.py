@@ -78,6 +78,58 @@ print("ok")
 ''',
     )
 
+    run_python(
+        "dashboard db migrations",
+        ROOT / "Server_fastapi_1c-main" / "Server_fastapi_1c-main",
+        r'''
+import sqlite3
+import uuid
+from pathlib import Path
+
+import bcrypt
+from cryptography.fernet import Fernet
+
+from migrations import run_migrations
+
+tmpdir = Path(r''' + repr(str(ROOT)) + r''') / ".smoke-logs" / f"security-db-{uuid.uuid4().hex}"
+tmpdir.mkdir(parents=True, exist_ok=False)
+db_path = tmpdir / "users.db"
+fernet = Fernet(Fernet.generate_key())
+fernet_factory = lambda: fernet
+
+applied = run_migrations(db_path, fernet_factory)
+assert applied == ["001_initial_dashboard_schema"]
+
+with sqlite3.connect(db_path) as conn:
+    conn.row_factory = sqlite3.Row
+    prompt_ids = {row["id"] for row in conn.execute("SELECT id FROM prompts").fetchall()}
+    assert {"chat", "digest", "ask"} <= prompt_ids
+    versions = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+    assert "001_initial_dashboard_schema" in versions
+
+assert run_migrations(db_path, fernet_factory) == []
+
+old_db_path = Path(tmpdir) / "old-users.db"
+with sqlite3.connect(old_db_path) as conn:
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL)")
+    conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("legacy", "secret"))
+
+applied = run_migrations(old_db_path, fernet_factory)
+assert applied == ["001_initial_dashboard_schema"]
+
+with sqlite3.connect(old_db_path) as conn:
+    conn.row_factory = sqlite3.Row
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    assert "password" not in columns
+    assert {"password_hash", "onec_password", "onec_base_url"} <= columns
+    row = conn.execute("SELECT username, password_hash, onec_password FROM users WHERE username = ?", ("legacy",)).fetchone()
+    assert bcrypt.checkpw(b"secret", row["password_hash"].encode())
+    assert fernet.decrypt(row["onec_password"].encode()).decode() == "secret"
+
+print("ok")
+''',
+    )
+
     print("\nsecurity check passed")
     return 0
 

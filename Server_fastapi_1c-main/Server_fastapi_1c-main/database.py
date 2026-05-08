@@ -1,11 +1,11 @@
 import sqlite3
 import bcrypt
-import os
 from pathlib import Path
 from cryptography.fernet import Fernet
 from config import settings
+from migrations import run_migrations
 
-DB_PATH = Path(os.environ.get("DASHBOARD_DB_PATH", "users.db"))
+DB_PATH = Path(settings.dashboard_db_path)
 
 
 def _fernet() -> Fernet:
@@ -72,68 +72,7 @@ def update_prompt(prompt_id: str, content: str) -> None:
 
 
 def init_db() -> None:
-    with get_connection() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                username        TEXT    UNIQUE NOT NULL,
-                password_hash   TEXT    NOT NULL,
-                onec_password   TEXT    NOT NULL DEFAULT '',
-                onec_base_url   TEXT    NOT NULL DEFAULT ''
-            )
-        """)
-
-        columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
-
-        # Миграция: старая схема с полем password → новая с password_hash + onec_password
-        if "password" in columns and "password_hash" not in columns:
-            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
-            conn.execute("ALTER TABLE users ADD COLUMN onec_password TEXT NOT NULL DEFAULT ''")
-
-            # Мигрируем существующих пользователей
-            rows = conn.execute("SELECT id, password FROM users").fetchall()
-            f = _fernet()
-            for row in rows:
-                pw = row["password"]
-                hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-                encrypted = f.encrypt(pw.encode()).decode()
-                conn.execute(
-                    "UPDATE users SET password_hash = ?, onec_password = ? WHERE id = ?",
-                    (hashed, encrypted, row["id"]),
-                )
-
-            # Удаляем старую колонку
-            conn.execute("ALTER TABLE users DROP COLUMN password")
-
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS prompts (
-                id          TEXT PRIMARY KEY,
-                name        TEXT NOT NULL,
-                content     TEXT NOT NULL DEFAULT '',
-                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS prompt_templates (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                prompt_id   TEXT NOT NULL,
-                name        TEXT NOT NULL,
-                content     TEXT NOT NULL DEFAULT '',
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        default_prompts = [
-            ("chat", "Чат-ассистент", ""),
-            ("digest", "Дайджест", ""),
-            ("ask", "Вопрос по данным", ""),
-        ]
-        for pid, name, content in default_prompts:
-            conn.execute(
-                "INSERT OR IGNORE INTO prompts (id, name, content) VALUES (?, ?, ?)",
-                (pid, name, content),
-            )
+    run_migrations(DB_PATH, _fernet)
 
 
 def get_user(username: str) -> dict | None:

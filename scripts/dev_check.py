@@ -22,8 +22,11 @@ def main() -> int:
             sys.executable,
             "-m",
             "py_compile",
+            "run_all.py",
             "Server_fastapi_1c-main/Server_fastapi_1c-main/main.py",
             "Server_fastapi_1c-main/Server_fastapi_1c-main/config.py",
+            "Server_fastapi_1c-main/Server_fastapi_1c-main/database.py",
+            "Server_fastapi_1c-main/Server_fastapi_1c-main/migrations.py",
             "server_ai-main/server_ai-main/app/api/routes/chat.py",
             "server_ai-main/server_ai-main/app/core/config.py",
             "server_ai-main/server_ai-main/app/services/ai_service.py",
@@ -31,6 +34,7 @@ def main() -> int:
             "server_digest_ai-main/server_digest_ai-main/lm_client.py",
             "scripts/smoke_check.py",
             "scripts/security_check.py",
+            "scripts/migrate_dashboard_db.py",
         ],
     )
     run(

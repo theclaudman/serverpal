@@ -16,6 +16,7 @@ Current implementation status, handoff notes, and next steps live in [PROJECT_TR
 cd C:\Users\klodc\Desktop\Serverpal
 copy .env.example .env
 # edit .env: SECRET_KEY, ENCRYPTION_KEY, SERVICE_API_KEY, price type GUIDs, LLM settings
+python -m pip install -r requirements-all.txt
 python run_all.py
 ```
 
@@ -50,6 +51,12 @@ Run the full development check from the repository root:
 
 ```powershell
 python scripts\dev_check.py
+```
+
+Run dashboard SQLite migrations explicitly:
+
+```powershell
+python scripts\migrate_dashboard_db.py
 ```
 
 Integration tests are marked `integration` and require `server_ai-main/server_ai-main/tests/.env.test` with `ONEC_IP`, `ONEC_LOGIN`, and `RUN_LLM_TESTS=1`.
