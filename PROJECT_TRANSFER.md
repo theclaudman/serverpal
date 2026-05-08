@@ -39,6 +39,7 @@ Implemented:
 - Root `.env` is mandatory; service-local `.env` fallback was removed.
 - AI Bridge and Digest API require `X-Service-API-Key` on internal routes.
 - Dashboard passes `X-Service-API-Key` to AI Bridge and Digest API, including WebSocket proxy.
+- AI Bridge uses `OPENAI_API_KEY`; Digest external provider uses `DIGEST_OPENAI_API_KEY` with `OPENAI_API_KEY` as compatibility fallback.
 - LLM-generated 1C queries are validated as read-only before execution.
 - Dashboard cookie security is configurable through `COOKIE_SECURE` and `COOKIE_SAMESITE`.
 - Dashboard registration is closed by default through `REGISTRATION_ENABLED=false`.
@@ -73,6 +74,10 @@ Key local defaults:
 AI_SERVICE_URL=http://127.0.0.1:8001
 DIGEST_SERVICE_URL=http://127.0.0.1:8002
 OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_API_KEY=lm-studio
+DIGEST_OPENAI_API_KEY=
+DIGEST_OPENAI_BASE_URL=https://api.hydraai.ru/v1
+DIGEST_OPENAI_MODEL=gpt-4o
 LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 ALLOWED_ORIGINS=http://127.0.0.1:9001,http://127.0.0.1:8001,http://127.0.0.1:8002
 SERVICE_API_KEY=<shared internal service key>
@@ -149,7 +154,7 @@ RUN_LLM_TESTS=1
 
 ## Verification Status
 
-Last verified after account settings UI:
+Last verified after splitting Digest external LLM key:
 
 ```powershell
 python scripts\dev_check.py
@@ -208,6 +213,7 @@ Recently completed:
 - Add local backup/restore scripts for dashboard DB, service logs, and service data.
 - Move price type GUIDs from global required env into per-user/client DB settings with env fallback and account settings API.
 - Add account settings UI for editing per-user/client price type GUIDs.
+- Split Digest external LLM key into `DIGEST_OPENAI_API_KEY` while keeping `OPENAI_API_KEY` fallback.
 
 Recommended next order:
 

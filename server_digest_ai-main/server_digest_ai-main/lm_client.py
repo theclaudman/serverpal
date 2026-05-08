@@ -95,8 +95,8 @@ def _send_lmstudio(text: str, system_prompt: str) -> str:
 def _send_openai(text: str, system_prompt: str) -> str:
     """
     Отправляет текст в OpenAI API.
-    API ключ берётся из переменной окружения OPENAI_API_KEY
-    или из файла .env в корне проекта.
+    API ключ берётся из DIGEST_OPENAI_API_KEY
+    с fallback на OPENAI_API_KEY для совместимости.
     """
     import urllib.request
 
@@ -131,31 +131,37 @@ def _send_openai(text: str, system_prompt: str) -> str:
 
 def _get_openai_key() -> str:
     """
-    Ищет OPENAI_API_KEY в порядке приоритета:
-      1. Переменная окружения
-      2. Файл .env в корне проекта (простой парсинг KEY=VALUE)
+    Ищет ключ для Digest OpenAI-compatible provider:
+      1. DIGEST_OPENAI_API_KEY
+      2. OPENAI_API_KEY fallback для совместимости
     Если не найден — поднимает понятную ошибку.
     """
-    # 1. Переменная окружения
-    key = os.environ.get("OPENAI_API_KEY", "")
-    if key and key != "lm-studio":
-        return key
+    invalid_values = {"", "lm-studio"}
+    for env_name in ("DIGEST_OPENAI_API_KEY", "OPENAI_API_KEY"):
+        key = os.environ.get(env_name, "").strip()
+        if key and key not in invalid_values:
+            return key
 
-    # 2. .env файл
     env_path = get_env_file()
     if env_path.exists():
         with open(env_path, encoding="utf-8") as f:
+            env_values = {}
             for line in f:
                 line = line.strip()
-                if line.startswith("OPENAI_API_KEY="):
-                    key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    if key and key != "lm-studio":
-                        return key
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                env_values[name.strip()] = value.strip().strip('"').strip("'")
+
+        for env_name in ("DIGEST_OPENAI_API_KEY", "OPENAI_API_KEY"):
+            key = env_values.get(env_name, "").strip()
+            if key and key not in invalid_values:
+                return key
 
     raise ValueError(
-        "OPENAI_API_KEY не найден.\n"
-        "Добавь в .env файл строку: OPENAI_API_KEY=sk-...\n"
-        "Или установи переменную окружения."
+        "DIGEST_OPENAI_API_KEY не найден.\n"
+        "Добавь в корневой .env файл строку: DIGEST_OPENAI_API_KEY=sk-...\n"
+        "Fallback на OPENAI_API_KEY допустим только для совместимости."
     )
 
 
