@@ -30,6 +30,7 @@ def main() -> int:
             "server_digest_ai-main/server_digest_ai-main/server.py",
             "server_digest_ai-main/server_digest_ai-main/lm_client.py",
             "scripts/smoke_check.py",
+            "scripts/security_check.py",
         ],
     )
     run(
@@ -37,6 +38,7 @@ def main() -> int:
         [sys.executable, "-m", "pytest", "-q"],
         cwd=ROOT / "server_ai-main" / "server_ai-main",
     )
+    run("security_check", [sys.executable, "scripts/security_check.py"])
     run("smoke_check", [sys.executable, "scripts/smoke_check.py", "--timeout", "30"])
     print("\ndev check passed")
     return 0

@@ -38,6 +38,12 @@ def test_validate_readonly_query_rejects_mutation():
     with pytest.raises(ValueError):
         validate_readonly_query("UPDATE catalog SET name = 'x'")
 
+    with pytest.raises(ValueError):
+        validate_readonly_query("SELECT name FROM catalog; DROP TABLE catalog")
+
+    with pytest.raises(ValueError):
+        validate_readonly_query("ВЫБРАТЬ Наименование ИЗ Справочник.Номенклатура ОБНОВИТЬ catalog")
+
 
 def test_verify_service_key_rejects_invalid_key():
     with pytest.raises(HTTPException):

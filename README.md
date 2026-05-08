@@ -8,7 +8,7 @@ ServerPal is a local-first AI finance assistant for 1C:UNF. The repository conta
 | AI Bridge | 8001 | LLM chat, function calling, 1C query proxy |
 | Digest API | 8002 | OData aggregation, financial digest, Q&A over digest data |
 
-The detailed handoff/specification for Codex/GPT or another developer is in [PROJECT_TRANSFER.md](PROJECT_TRANSFER.md).
+Current implementation status, handoff notes, and next steps live in [PROJECT_TRANSFER.md](PROJECT_TRANSFER.md). Do not duplicate active project status in separate handoff files.
 
 ## Local Start
 
