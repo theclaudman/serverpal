@@ -27,7 +27,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, settings
+from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, SERVICE_API_KEY, settings
 from database import (
     init_db, get_user, username_exists, create_user,
     verify_password, decrypt_onec_password,
@@ -218,6 +218,17 @@ def require_session(request: Request):
     return session, None
 
 
+def set_session_cookie(response: RedirectResponse, session_data: dict) -> None:
+    response.set_cookie(
+        key="session",
+        value=encode_session(session_data),
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=60 * 60 * 12,
+    )
+
+
 # ── Вспомогательные функции шаблонов ──────────────────────────────────────────
 
 def _render_login(error: str = "", username: str = "") -> str:
@@ -296,13 +307,7 @@ async def login_submit(
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
     session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
-    response.set_cookie(
-        key="session",
-        value=encode_session(session_data),
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 12,
-    )
+    set_session_cookie(response, session_data)
     return response
 
 
@@ -366,20 +371,14 @@ async def register_submit(
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
     session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
     response = RedirectResponse(url="/", status_code=302)
-    response.set_cookie(
-        key="session",
-        value=encode_session(session_data),
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 12,
-    )
+    set_session_cookie(response, session_data)
     return response
 
 
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/login", status_code=302)
-    response.delete_cookie("session")
+    response.delete_cookie("session", secure=settings.cookie_secure, samesite=settings.cookie_samesite)
     return response
 
 
@@ -628,8 +627,14 @@ async def ws_chat_proxy(websocket: WebSocket):
     ai_ws_url = AI_SERVICE_URL.replace("http://", "ws://").replace("https://", "wss://")
     ai_ws_url = f"{ai_ws_url}/chat/ws"
 
+    ws_headers = {"X-Service-API-Key": SERVICE_API_KEY}
     try:
-        async with websockets.connect(ai_ws_url) as ai_ws:
+        try:
+            ai_ws_context = websockets.connect(ai_ws_url, additional_headers=ws_headers)
+        except TypeError:
+            ai_ws_context = websockets.connect(ai_ws_url, extra_headers=ws_headers)
+
+        async with ai_ws_context as ai_ws:
             while True:
                 # Получаем промпт от браузера
                 raw = await websocket.receive_text()

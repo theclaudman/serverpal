@@ -15,12 +15,13 @@ SERVICES = [
         "name": "Digest API (8002)",
         "cwd": "server_digest_ai-main/server_digest_ai-main",
         "cmd": [sys.executable, "server.py"],
+        "env": {"DIGEST_HOST": "127.0.0.1"},
     },
     {
         "name": "AI Bridge (8001)",
         "cwd": "server_ai-main/server_ai-main",
         "cmd": [sys.executable, "-m", "uvicorn", "app.main:app",
-                "--host", "0.0.0.0", "--port", "8001"],
+                "--host", "127.0.0.1", "--port", "8001"],
     },
     {
         "name": "Dashboard (9001)",
@@ -44,11 +45,15 @@ def start_all():
             print(f"  ✗ {svc['name']} — папка не найдена: {cwd}")
             continue
 
+        env = os.environ.copy()
+        env.update(svc.get("env", {}))
+
         proc = subprocess.Popen(
             svc["cmd"],
             cwd=cwd,
             stdout=sys.stdout,
             stderr=sys.stderr,
+            env=env,
         )
         processes.append((svc["name"], proc))
         print(f"  ✓ {svc['name']} запущен (PID {proc.pid})")

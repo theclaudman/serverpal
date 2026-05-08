@@ -15,7 +15,7 @@ Digest API использует свои файлы prompts/*.txt.
 
 import httpx
 
-from config import DIGEST_SERVICE_URL
+from config import DIGEST_SERVICE_URL, SERVICE_API_KEY
 
 
 # Таймаут для генерации дайджеста / вопроса (LLM думает долго)
@@ -31,7 +31,7 @@ async def _post(path: str, body: dict, timeout: int = _TIMEOUT_LONG) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, json=body)
+            resp = await client.post(url, json=body, headers={"X-Service-API-Key": SERVICE_API_KEY})
             return resp.json()
     except httpx.TimeoutException:
         return {
@@ -56,7 +56,7 @@ async def _get(path: str, timeout: int = _TIMEOUT_SHORT) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers={"X-Service-API-Key": SERVICE_API_KEY})
             return resp.json()
     except httpx.ConnectError:
         return {

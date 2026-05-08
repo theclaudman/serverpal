@@ -15,7 +15,7 @@ The detailed handoff/specification for Codex/GPT or another developer is in [PRO
 ```powershell
 cd C:\Users\klodc\Desktop\Serverpal
 copy .env.example .env
-# edit .env: SECRET_KEY, ENCRYPTION_KEY, price type GUIDs, LLM settings
+# edit .env: SECRET_KEY, ENCRYPTION_KEY, SERVICE_API_KEY, price type GUIDs, LLM settings
 python run_all.py
 ```
 
@@ -26,6 +26,8 @@ http://127.0.0.1:9001
 ```
 
 Use `127.0.0.1`, not `localhost`, for local checks. Anti-detect browsers can break cookies or WebSocket upgrades; use a normal Chrome/Edge/Firefox profile for debugging.
+
+The root `.env` is required. Service-local `.env` files are not used as fallback in the hardened configuration.
 
 ## Checks
 
@@ -65,5 +67,7 @@ For local Docker with LM Studio running on the host, set these in `.env`:
 OPENAI_BASE_URL=http://host.docker.internal:1234/v1
 LMSTUDIO_BASE_URL=http://host.docker.internal:1234/v1
 ```
+
+`docker-compose.yml` is fail-fast for required secrets and IDs. It will not silently use production-unsafe defaults for `SECRET_KEY`, `ENCRYPTION_KEY`, `SERVICE_API_KEY`, or price type GUIDs.
 
 The next production step is Nginx + HTTPS + WebSocket proxy headers for VPS deployment.

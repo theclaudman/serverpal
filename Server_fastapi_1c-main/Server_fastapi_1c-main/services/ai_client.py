@@ -9,7 +9,7 @@ Async (httpx). Передаёт system_prompt из БД дашборда —
 
 import httpx
 
-from config import AI_SERVICE_URL
+from config import AI_SERVICE_URL, SERVICE_API_KEY
 
 # Таймаут — LLM может думать долго (function calling до 5 итераций)
 _TIMEOUT = 120
@@ -41,7 +41,10 @@ async def chat(
         response = await client.post(
             url,
             json=payload,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Service-API-Key": SERVICE_API_KEY,
+            },
         )
         response.raise_for_status()
         data = response.json()

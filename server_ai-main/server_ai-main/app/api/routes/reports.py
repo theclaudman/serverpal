@@ -1,7 +1,8 @@
 import json
 import logging
 from datetime import date
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.auth import verify_service_key
 from app.core.security import make_base_id
 from app.models.schemas import ReportRequest, ReportResponse
 from app.services import ai_service, storage_service
@@ -29,13 +30,13 @@ def _handle_report(req: ReportRequest, report_type: str) -> ReportResponse:
     )
 
 
-@router.post("/daily", response_model=ReportResponse, summary="Ежедневный отчёт")
+@router.post("/daily", response_model=ReportResponse, summary="Ежедневный отчёт", dependencies=[Depends(verify_service_key)])
 def daily_report(req: ReportRequest) -> ReportResponse:
     """Принимает сырые данные из 1С, формирует ежедневный отчёт через AI."""
     return _handle_report(req, "daily")
 
 
-@router.post("/weekly", response_model=ReportResponse, summary="Еженедельный отчёт")
+@router.post("/weekly", response_model=ReportResponse, summary="Еженедельный отчёт", dependencies=[Depends(verify_service_key)])
 def weekly_report(req: ReportRequest) -> ReportResponse:
     """Принимает сырые данные из 1С, формирует еженедельный отчёт через AI."""
     return _handle_report(req, "weekly")

@@ -9,7 +9,11 @@ def get_env_file() -> Path:
             root_env = candidate / ".env"
             if root_env.exists():
                 return root_env
-    return current.parent / ".env"
+            raise RuntimeError(
+                f"Корневой .env не найден: {root_env}. "
+                "Создайте его из .env.example в корне проекта."
+            )
+    raise RuntimeError("Не удалось найти корень проекта ServerPal")
 
 
 class Settings(BaseSettings):
@@ -37,3 +41,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.service_api_key.strip() in {"", "change-me", "change_me"}:
+    raise RuntimeError("SERVICE_API_KEY должен быть задан в корневом .env")

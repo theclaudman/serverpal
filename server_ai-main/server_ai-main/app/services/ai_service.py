@@ -16,7 +16,7 @@ from openai import OpenAI
 from app.core.config import settings
 from app.models.schemas import BaseCredentials
 from pathlib import Path
-from app.services.onec_service import execute_query
+from app.services.onec_service import execute_query, query_fingerprint, validate_readonly_query
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,12 @@ def _execute_1c_query(args: dict, credentials: BaseCredentials):
     if not query:
         return {"error": "query не передан"}
 
-    logger.info(f"[TOOL] execute_1c_query: {query}")
+    try:
+        validate_readonly_query(query)
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc), "query_id": query_fingerprint(query)}
+
+    logger.info(f"[TOOL] execute_1c_query query_id={query_fingerprint(query)}")
 
     try:
         result = execute_query(credentials, query)

@@ -11,11 +11,13 @@ server.py — FastAPI-приложение Digest API
   GET  /api/providers  — список доступных LLM-провайдеров
 """
 
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from secrets import compare_digest
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -27,10 +29,23 @@ def get_env_file() -> Path:
             root_env = candidate / ".env"
             if root_env.exists():
                 return root_env
-    return current.parent / ".env"
+            raise RuntimeError(
+                f"Корневой .env не найден: {root_env}. "
+                "Создайте его из .env.example в корне проекта."
+            )
+    raise RuntimeError("Не удалось найти корень проекта ServerPal")
 
 
 load_dotenv(get_env_file(), override=False)
+
+SERVICE_API_KEY = os.environ.get("SERVICE_API_KEY", "").strip()
+if SERVICE_API_KEY in {"", "change-me", "change_me"}:
+    raise RuntimeError("SERVICE_API_KEY должен быть задан в корневом .env")
+
+
+def verify_service_key(x_service_api_key: str = Header(default="")) -> None:
+    if not compare_digest(x_service_api_key, SERVICE_API_KEY):
+        raise HTTPException(status_code=403, detail="Invalid service API key")
 
 from api_models import (
     DigestRequest, AskRequest,
@@ -72,8 +87,6 @@ app = FastAPI(
 )
 
 # CORS — дашборд на другом порту
-import os
-
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://127.0.0.1:9001").split(",")
 
 app.add_middleware(
@@ -137,7 +150,7 @@ async def health():
 # GET /api/providers
 # ---------------------------------------------------------------------------
 
-@app.get("/api/providers", response_model=ProvidersResponse)
+@app.get("/api/providers", response_model=ProvidersResponse, dependencies=[Depends(verify_service_key)])
 async def get_providers():
     from lm_client import check_lmstudio, _get_openai_key
 
@@ -178,7 +191,7 @@ async def get_providers():
 # POST /api/digest
 # ---------------------------------------------------------------------------
 
-@app.post("/api/digest")
+@app.post("/api/digest", dependencies=[Depends(verify_service_key)])
 async def generate_digest(req: DigestRequest):
     # Парсим дату
     try:
@@ -242,7 +255,7 @@ async def generate_digest(req: DigestRequest):
 # POST /api/ask
 # ---------------------------------------------------------------------------
 
-@app.post("/api/ask")
+@app.post("/api/ask", dependencies=[Depends(verify_service_key)])
 async def ask_question(req: AskRequest):
     base_url = req.credentials.base_url
     anonymize = req.provider.lower().strip() != "lmstudio"
@@ -324,4 +337,4 @@ async def ask_question(req: AskRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host=os.environ.get("DIGEST_HOST", "127.0.0.1"), port=8002)

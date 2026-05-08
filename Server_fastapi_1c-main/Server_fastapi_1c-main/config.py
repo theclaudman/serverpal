@@ -10,7 +10,11 @@ def get_env_file() -> Path:
             root_env = candidate / ".env"
             if root_env.exists():
                 return root_env
-    return current.parent / ".env"
+            raise RuntimeError(
+                f"Корневой .env не найден: {root_env}. "
+                "Создайте его из .env.example в корне проекта."
+            )
+    raise RuntimeError("Не удалось найти корень проекта ServerPal")
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -22,9 +26,12 @@ class Settings(BaseSettings):
     encryption_key: str = ""
     ai_service_url: str = "http://127.0.0.1:8001"
     digest_service_url: str = "http://127.0.0.1:8002"
+    service_api_key: str = ""
     price_type_retail: str = "55a36684-62bc-11f0-89d6-d8625b865b03"
     price_type_wholesale: str = "05baa3c2-5ea9-11f0-aa16-10ffe0a68931"
     allowed_origins: str = "http://127.0.0.1:9001"
+    cookie_secure: bool = False
+    cookie_samesite: str = "lax"
     
     @property
     def price_columns(self) -> dict:
@@ -35,7 +42,11 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+if settings.service_api_key.strip() in {"", "change-me", "change_me"}:
+    raise RuntimeError("SERVICE_API_KEY должен быть задан в корневом .env")
+
 SECRET_KEY = settings.secret_key
 AI_SERVICE_URL = settings.ai_service_url
 DIGEST_SERVICE_URL = settings.digest_service_url
+SERVICE_API_KEY = settings.service_api_key
 PRICE_COLUMNS = settings.price_columns

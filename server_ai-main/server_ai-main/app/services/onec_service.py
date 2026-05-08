@@ -4,6 +4,8 @@ import urllib.parse
 import urllib.error
 import json
 import base64
+import hashlib
+import re
 from app.models.schemas import BaseCredentials
 
 
@@ -19,6 +21,39 @@ def _basic_auth_header(login: str, password: str) -> str:
     """Формирует заголовок Basic Auth."""
     token = base64.b64encode(f"{login}:{password}".encode()).decode()
     return f"Basic {token}"
+
+
+_FORBIDDEN_QUERY_PATTERNS = [
+    r"\bDELETE\b",
+    r"\bUPDATE\b",
+    r"\bINSERT\b",
+    r"\bDROP\b",
+    r"\bALTER\b",
+    r"\bTRUNCATE\b",
+    r"\bEXEC\b",
+    r"\bMERGE\b",
+    r"\bУДАЛИТЬ\b",
+    r"\bОБНОВИТЬ\b",
+    r"\bВСТАВИТЬ\b",
+    r"\bИЗМЕНИТЬ\b",
+    r"\bСОЗДАТЬ\b",
+    r"\bВЫПОЛНИТЬ\b",
+]
+
+
+def query_fingerprint(query_text: str) -> str:
+    return hashlib.sha256(query_text.encode("utf-8")).hexdigest()[:12]
+
+
+def validate_readonly_query(query_text: str) -> None:
+    normalized = query_text.strip()
+    upper = normalized.upper()
+    if not upper.startswith(("ВЫБРАТЬ", "SELECT")):
+        raise ValueError("Разрешены только read-only запросы, начинающиеся с ВЫБРАТЬ или SELECT")
+
+    for pattern in _FORBIDDEN_QUERY_PATTERNS:
+        if re.search(pattern, upper):
+            raise ValueError("Запрос содержит запрещённую операцию")
 
 
 # def execute_query(credentials: BaseCredentials, query_text: str) -> dict:
@@ -54,7 +89,7 @@ def _basic_auth_header(login: str, password: str) -> str:
 #         raise RuntimeError(f"Не удалось подключиться к базе 1С: {e}")
 
 def execute_query(credentials: BaseCredentials, query_text: str) -> dict:
-    print(query_text)
+    validate_readonly_query(query_text)
 
     url = _build_url(credentials.ip, path="/hs/ai/query")
     payload = json.dumps({"query": query_text}).encode("utf-8")
@@ -87,7 +122,7 @@ def execute_query(credentials: BaseCredentials, query_text: str) -> dict:
             "code": e.code,
             "reason": e.reason,
             "details": error_body,  # 👈 вот здесь будет текст ошибки 1С
-            "query": query_text,
+            "query_id": query_fingerprint(query_text),
         }
 
     except urllib.error.URLError as e:
@@ -95,7 +130,7 @@ def execute_query(credentials: BaseCredentials, query_text: str) -> dict:
             "status": "error",
             "type": "connection_error",
             "message": str(e.reason),
-            "query": query_text,
+            "query_id": query_fingerprint(query_text),
         }
 
     except (http.client.RemoteDisconnected, ConnectionError) as e:
@@ -103,5 +138,5 @@ def execute_query(credentials: BaseCredentials, query_text: str) -> dict:
             "status": "error",
             "type": "connection_error",
             "message": str(e),
-            "query": query_text,
+            "query_id": query_fingerprint(query_text),
         }

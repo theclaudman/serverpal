@@ -1,6 +1,7 @@
-import json
 import logging
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import json
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from app.core.auth import verify_service_key, verify_ws_service_key
 from app.core.security import make_base_id
 from app.models.schemas import ChatRequest, ChatResponse, BaseCredentials
 from app.services import ai_service
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-@router.post("/", response_model=ChatResponse, summary="Произвольный запрос к AI")
+@router.post("/", response_model=ChatResponse, summary="Произвольный запрос к AI", dependencies=[Depends(verify_service_key)])
 def chat(req: ChatRequest) -> ChatResponse:
     """
     Принимает текстовый промпт клиента, передаёт в LLM, возвращает ответ.
@@ -36,6 +37,9 @@ async def chat_ws(websocket: WebSocket):
       {"type": "done"}                                — конец генерации
       {"type": "error",       "message": "..."}      — ошибка
     """
+    if not await verify_ws_service_key(websocket):
+        return
+
     await websocket.accept()
     logger.info("WebSocket подключён")
 
