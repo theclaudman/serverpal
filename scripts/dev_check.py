@@ -35,6 +35,8 @@ def main() -> int:
             "scripts/smoke_check.py",
             "scripts/security_check.py",
             "scripts/migrate_dashboard_db.py",
+            "scripts/backup.py",
+            "scripts/restore.py",
         ],
     )
     run(

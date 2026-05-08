@@ -46,6 +46,7 @@ Implemented:
 - `run_all.py` binds AI Bridge and Digest API to `127.0.0.1`.
 - Root `requirements-all.txt` is available for no-Docker local setup.
 - Dashboard SQLite schema is managed by a simple versioned migration runner.
+- Local backup/restore scripts cover dashboard DB plus service logs/data.
 - Smoke check for starting all three services.
 - Security check covers internal API key enforcement and registration guard.
 - Fast pytest default: unit tests run, integration tests are skipped unless explicitly enabled.
@@ -123,6 +124,15 @@ python scripts\migrate_dashboard_db.py
 
 Dashboard startup still calls migrations through `init_db()` for compatibility.
 
+Create and restore local backups:
+
+```powershell
+python scripts\backup.py
+python scripts\restore.py backups\serverpal-backup-YYYYMMDD-HHMMSS.zip --yes
+```
+
+Backups go to `backups/` by default and are ignored by git. `.env` is not included unless `--include-env` is passed.
+
 Integration tests require live 1C/LLM and are skipped by default. Enable them with `server_ai-main/server_ai-main/tests/.env.test`:
 
 ```env
@@ -190,15 +200,15 @@ Recently completed:
 - Add focused security checks for `X-Service-API-Key`, registration guard, and read-only query validation.
 - Make `run_all.py` console output readable on Windows and add root `requirements-all.txt`.
 - Add versioned Dashboard SQLite migrations and a root migration script.
+- Add local backup/restore scripts for dashboard DB, service logs, and service data.
 
 Recommended next order:
 
-1. Add backup/restore scripts for `users.db`, logs, and data.
-2. Clean remaining mojibake only where it is real file corruption, not console output.
-3. Discuss Docker shape before changing deployment.
-4. Add Nginx + HTTPS deployment docs/config if going VPS.
-5. Refresh dashboard UI for demo.
-6. Add product features: OData YAML UI, compute rules, manual events layer, external factors, RAG/filtering.
+1. Clean remaining mojibake only where it is real file corruption, not console output.
+2. Discuss Docker shape before changing deployment.
+3. Add Nginx + HTTPS deployment docs/config if going VPS.
+4. Refresh dashboard UI for demo.
+5. Add product features: OData YAML UI, compute rules, manual events layer, external factors, RAG/filtering.
 
 ## Do Not Break
 

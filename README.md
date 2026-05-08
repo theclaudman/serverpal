@@ -59,6 +59,13 @@ Run dashboard SQLite migrations explicitly:
 python scripts\migrate_dashboard_db.py
 ```
 
+Create and restore local backups:
+
+```powershell
+python scripts\backup.py
+python scripts\restore.py backups\serverpal-backup-YYYYMMDD-HHMMSS.zip --yes
+```
+
 Integration tests are marked `integration` and require `server_ai-main/server_ai-main/tests/.env.test` with `ONEC_IP`, `ONEC_LOGIN`, and `RUN_LLM_TESTS=1`.
 
 ## Docker Preview
