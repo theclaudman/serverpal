@@ -32,6 +32,8 @@ The root `.env` is required. Service-local `.env` files are not used as fallback
 
 Registration is closed by default. For local onboarding, either set `REGISTRATION_ENABLED=true`, or set `REGISTRATION_TOKEN` and open `/register?token=<token>`.
 
+Price type GUIDs are client-specific. Prefer entering them during registration or updating `/api/account/settings`; `PRICE_TYPE_RETAIL` and `PRICE_TYPE_WHOLESALE` in `.env` are fallback defaults only.
+
 ## Checks
 
 Fast local smoke check for all services:

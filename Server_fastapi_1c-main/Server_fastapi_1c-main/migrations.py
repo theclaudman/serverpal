@@ -97,8 +97,14 @@ def _migration_001_initial_dashboard_schema(conn: sqlite3.Connection, fernet_fac
         )
 
 
+def _migration_002_user_price_types(conn: sqlite3.Connection, fernet_factory: FernetFactory) -> None:
+    _ensure_column(conn, "users", "price_type_retail", "price_type_retail TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "users", "price_type_wholesale", "price_type_wholesale TEXT NOT NULL DEFAULT ''")
+
+
 MIGRATIONS: list[Migration] = [
     ("001_initial_dashboard_schema", _migration_001_initial_dashboard_schema),
+    ("002_user_price_types", _migration_002_user_price_types),
 ]
 
 

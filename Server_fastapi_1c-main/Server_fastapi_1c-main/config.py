@@ -28,21 +28,14 @@ class Settings(BaseSettings):
     digest_service_url: str = "http://127.0.0.1:8002"
     service_api_key: str = ""
     dashboard_db_path: str = "users.db"
-    price_type_retail: str = "55a36684-62bc-11f0-89d6-d8625b865b03"
-    price_type_wholesale: str = "05baa3c2-5ea9-11f0-aa16-10ffe0a68931"
+    price_type_retail: str = ""
+    price_type_wholesale: str = ""
     allowed_origins: str = "http://127.0.0.1:9001"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
     registration_enabled: bool = False
     registration_token: str = ""
     
-    @property
-    def price_columns(self) -> dict:
-        return {
-            self.price_type_retail: "Розничная",
-            self.price_type_wholesale: "Оптовая",
-        }
-
 settings = Settings()
 
 if settings.service_api_key.strip() in {"", "change-me", "change_me"}:
@@ -52,4 +45,3 @@ SECRET_KEY = settings.secret_key
 AI_SERVICE_URL = settings.ai_service_url
 DIGEST_SERVICE_URL = settings.digest_service_url
 SERVICE_API_KEY = settings.service_api_key
-PRICE_COLUMNS = settings.price_columns

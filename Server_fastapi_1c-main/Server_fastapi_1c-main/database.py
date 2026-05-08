@@ -78,7 +78,12 @@ def init_db() -> None:
 def get_user(username: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT username, password_hash, onec_password, onec_base_url FROM users WHERE username = ?",
+            """
+            SELECT username, password_hash, onec_password, onec_base_url,
+                   price_type_retail, price_type_wholesale
+            FROM users
+            WHERE username = ?
+            """,
             (username,),
         ).fetchone()
     if not row:
@@ -105,12 +110,36 @@ def username_exists(username: str) -> bool:
     return row is not None
 
 
-def create_user(username: str, password: str, onec_base_url: str) -> None:
+def create_user(
+    username: str,
+    password: str,
+    onec_base_url: str,
+    price_type_retail: str = "",
+    price_type_wholesale: str = "",
+) -> None:
     """Сохраняет пользователя: пароль хэшируется + шифруется."""
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     encrypted = _fernet().encrypt(password.encode()).decode()
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO users (username, password_hash, onec_password, onec_base_url) VALUES (?, ?, ?, ?)",
-            (username, hashed, encrypted, onec_base_url),
+            """
+            INSERT INTO users (
+                username, password_hash, onec_password, onec_base_url,
+                price_type_retail, price_type_wholesale
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (username, hashed, encrypted, onec_base_url, price_type_retail, price_type_wholesale),
+        )
+
+
+def update_user_price_types(username: str, price_type_retail: str, price_type_wholesale: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE users
+            SET price_type_retail = ?, price_type_wholesale = ?
+            WHERE username = ?
+            """,
+            (price_type_retail, price_type_wholesale, username),
         )

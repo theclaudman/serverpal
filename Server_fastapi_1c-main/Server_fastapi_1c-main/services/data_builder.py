@@ -1,9 +1,4 @@
-# services/data_builder.py
-
-from config import PRICE_COLUMNS
-
-
-def build_price_list(nomenclature, prices, stocks, reserves, groups):
+def build_price_list(nomenclature, prices, stocks, reserves, groups, price_columns: dict):
     """Собирает итоговый список товаров с ценами и остатками"""
     nomenclature = [
         n for n in nomenclature
@@ -47,7 +42,7 @@ def build_price_list(nomenclature, prices, stocks, reserves, groups):
         nom_prices = prices_index.get(nom_key, {})
 
         # Пропускаем если нет ни одной цены
-        has_price = any(nom_prices.get(k, 0) > 0 for k in PRICE_COLUMNS)
+        has_price = any(nom_prices.get(k, 0) > 0 for k in price_columns)
         if not has_price:
             continue
 
@@ -66,7 +61,7 @@ def build_price_list(nomenclature, prices, stocks, reserves, groups):
         }
 
         # Добавляем колонки цен
-        for price_key, price_name in PRICE_COLUMNS.items():
+        for price_key, price_name in price_columns.items():
             row[price_name] = nom_prices.get(price_key, 0)
 
         result.append(row)

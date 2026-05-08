@@ -46,6 +46,8 @@ Implemented:
 - `run_all.py` binds AI Bridge and Digest API to `127.0.0.1`.
 - Root `requirements-all.txt` is available for no-Docker local setup.
 - Dashboard SQLite schema is managed by a simple versioned migration runner.
+- Price type GUIDs are per-user/client settings in dashboard DB; root `.env` values are optional fallback only.
+- Account settings API supports reading/updating per-user price type GUIDs through `/api/account/settings`.
 - Local backup/restore scripts cover dashboard DB plus service logs/data.
 - Smoke check for starting all three services.
 - Security check covers internal API key enforcement and registration guard.
@@ -77,6 +79,8 @@ COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
 REGISTRATION_ENABLED=false
 REGISTRATION_TOKEN=
+PRICE_TYPE_RETAIL=
+PRICE_TYPE_WHOLESALE=
 ```
 
 For local onboarding:
@@ -201,14 +205,16 @@ Recently completed:
 - Make `run_all.py` console output readable on Windows and add root `requirements-all.txt`.
 - Add versioned Dashboard SQLite migrations and a root migration script.
 - Add local backup/restore scripts for dashboard DB, service logs, and service data.
+- Move price type GUIDs from global required env into per-user/client DB settings with env fallback and account settings API.
 
 Recommended next order:
 
-1. Clean remaining mojibake only where it is real file corruption, not console output.
-2. Discuss Docker shape before changing deployment.
-3. Add Nginx + HTTPS deployment docs/config if going VPS.
-4. Refresh dashboard UI for demo.
-5. Add product features: OData YAML UI, compute rules, manual events layer, external factors, RAG/filtering.
+1. Add UI page/control for editing per-user/client price type GUIDs.
+2. Clean remaining mojibake only where it is real file corruption, not console output.
+3. Discuss Docker shape before changing deployment.
+4. Add Nginx + HTTPS deployment docs/config if going VPS.
+5. Refresh dashboard UI for demo.
+6. Add product features: OData YAML UI, compute rules, manual events layer, external factors, RAG/filtering.
 
 ## Do Not Break
 

@@ -28,12 +28,13 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from config import PRICE_COLUMNS, SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, SERVICE_API_KEY, settings
+from config import SECRET_KEY, AI_SERVICE_URL, DIGEST_SERVICE_URL, SERVICE_API_KEY, settings
 from database import (
     init_db, get_user, username_exists, create_user,
     verify_password, decrypt_onec_password,
     get_all_prompts, get_prompt, update_prompt,
     get_templates, create_template, delete_template,
+    update_user_price_types,
     _fernet,
 )
 from services.cache import get_cached, set_cached
@@ -70,6 +71,10 @@ class AskBody(BaseModel):
 
 class PromptUpdate(BaseModel):
     content: str
+
+class AccountSettingsUpdate(BaseModel):
+    price_type_retail: str = ""
+    price_type_wholesale: str = ""
 
 
 # ── Логирование ───────────────────────────────────────────────────────────────
@@ -219,6 +224,17 @@ def require_session(request: Request):
     return session, None
 
 
+def _user_price_columns(session: dict) -> dict:
+    price_type_retail = (session.get("price_type_retail") or settings.price_type_retail).strip()
+    price_type_wholesale = (session.get("price_type_wholesale") or settings.price_type_wholesale).strip()
+    columns = {}
+    if price_type_retail and price_type_retail != "00000000-0000-0000-0000-000000000000":
+        columns[price_type_retail] = "Розничная"
+    if price_type_wholesale and price_type_wholesale != "00000000-0000-0000-0000-000000000000":
+        columns[price_type_wholesale] = "Оптовая"
+    return columns
+
+
 def set_session_cookie(response: RedirectResponse, session_data: dict) -> None:
     response.set_cookie(
         key="session",
@@ -325,7 +341,13 @@ async def login_submit(
         )
 
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
-    session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
+    session_data = {
+        "onec_base_url": onec_base_url,
+        "user": username,
+        "password": encrypted_pw,
+        "price_type_retail": user.get("price_type_retail", ""),
+        "price_type_wholesale": user.get("price_type_wholesale", ""),
+    }
     response = RedirectResponse(url="/", status_code=302)
     set_session_cookie(response, session_data)
     return response
@@ -349,6 +371,8 @@ async def register_submit(
     onec_base_url: str = Form(...),
     username:      str = Form(...),
     password:      str = Form(default=""),
+    price_type_retail: str = Form(default=""),
+    price_type_wholesale: str = Form(default=""),
     registration_token: str = Form(default=""),
 ):
     if not _registration_allowed(registration_token):
@@ -358,6 +382,8 @@ async def register_submit(
     if not onec_base_url.startswith("http://") and not onec_base_url.startswith("https://"):
         onec_base_url = "http://" + onec_base_url
     username = username.strip()
+    price_type_retail = price_type_retail.strip()
+    price_type_wholesale = price_type_wholesale.strip()
 
     if not onec_base_url or not username:
         return HTMLResponse(
@@ -365,6 +391,7 @@ async def register_submit(
                 error="Заполните все обязательные поля",
                 username=username,
                 onec_base_url=onec_base_url,
+                registration_token=registration_token,
             ),
             status_code=400,
         )
@@ -375,6 +402,7 @@ async def register_submit(
                 error="Пользователь с таким логином уже существует",
                 username=username,
                 onec_base_url=onec_base_url,
+                registration_token=registration_token,
             ),
             status_code=400,
         )
@@ -388,14 +416,21 @@ async def register_submit(
                 error=f"Не удалось подключиться к 1С: {e}",
                 username=username,
                 onec_base_url=onec_base_url,
+                registration_token=registration_token,
             ),
             status_code=502,
         )
 
-    create_user(username, password, onec_base_url)
+    create_user(username, password, onec_base_url, price_type_retail, price_type_wholesale)
 
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
-    session_data = {"onec_base_url": onec_base_url, "user": username, "password": encrypted_pw}
+    session_data = {
+        "onec_base_url": onec_base_url,
+        "user": username,
+        "password": encrypted_pw,
+        "price_type_retail": price_type_retail,
+        "price_type_wholesale": price_type_wholesale,
+    }
     response = RedirectResponse(url="/", status_code=302)
     set_session_cookie(response, session_data)
     return response
@@ -405,6 +440,37 @@ async def register_submit(
 async def logout():
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie("session", secure=settings.cookie_secure, samesite=settings.cookie_samesite)
+    return response
+
+
+@app.get("/api/account/settings")
+async def api_account_settings(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    return JSONResponse(
+        {
+            "price_type_retail": session.get("price_type_retail", ""),
+            "price_type_wholesale": session.get("price_type_wholesale", ""),
+            "effective_price_types": _user_price_columns(session),
+        }
+    )
+
+
+@app.post("/api/account/settings")
+async def api_update_account_settings(request: Request, body: AccountSettingsUpdate):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+
+    price_type_retail = body.price_type_retail.strip()
+    price_type_wholesale = body.price_type_wholesale.strip()
+    update_user_price_types(session["user"], price_type_retail, price_type_wholesale)
+
+    session["price_type_retail"] = price_type_retail
+    session["price_type_wholesale"] = price_type_wholesale
+    response = JSONResponse({"status": "ok"})
+    set_session_cookie(response, session)
     return response
 
 
@@ -425,14 +491,21 @@ async def get_price_list(request: Request):
         return redirect
 
     cache_key = session["onec_base_url"]
+    price_columns_map = _user_price_columns(session)
+    if not price_columns_map:
+        raise HTTPException(
+            status_code=400,
+            detail="Не заданы GUID видов цен для клиента. Укажите price_type_retail/price_type_wholesale в настройках пользователя или fallback в .env.",
+        )
 
-    cached = get_cached("price", cache_key, "price_list")
+    price_cache_key = "|".join(price_columns_map.keys())
+    cached = get_cached("price", cache_key, "price_list", price_cache_key)
     if cached:
         price_list, groups_hierarchy, groups_list, price_columns = cached
     else:
         try:
             nomenclature = await fetch_nomenclature()
-            prices = await fetch_prices(price_type_keys=list(PRICE_COLUMNS.keys()))
+            prices = await fetch_prices(price_type_keys=list(price_columns_map.keys()))
             stocks = await fetch_stocks()
             reserves = await fetch_reserves()
             groups = await fetch_groups()
@@ -441,15 +514,15 @@ async def get_price_list(request: Request):
             raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
         try:
-            price_list       = build_price_list(nomenclature, prices, stocks, reserves, groups)
+            price_list       = build_price_list(nomenclature, prices, stocks, reserves, groups, price_columns_map)
             groups_hierarchy = build_groups_hierarchy(groups)
             groups_list      = get_unique_groups(price_list)
-            price_columns    = list(PRICE_COLUMNS.values())
+            price_columns    = list(price_columns_map.values())
         except Exception as e:
             logger.error(f"Ошибка обработки данных: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
-        set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list")
+        set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list", price_cache_key)
 
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = html.replace("/*@@PRICE_DATA@@*/[]",       json.dumps(price_list,       ensure_ascii=False))
