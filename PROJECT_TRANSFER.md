@@ -223,6 +223,7 @@ Recently completed:
 - Move price type GUIDs from global required env into per-user/client DB settings with env fallback and account settings API.
 - Add account settings UI for editing per-user/client price type GUIDs.
 - Split Digest external LLM key into `DIGEST_OPENAI_API_KEY` while keeping `OPENAI_API_KEY` fallback.
+- Remove stale service-local docs; keep `PROJECT_TRANSFER.md` as the canonical handoff/status file.
 - Add `scripts/prod_check.py` for production-like `.env` validation.
 
 Recommended next order:
