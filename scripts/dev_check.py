@@ -34,6 +34,7 @@ def main() -> int:
             "server_digest_ai-main/server_digest_ai-main/lm_client.py",
             "scripts/smoke_check.py",
             "scripts/security_check.py",
+            "scripts/prod_check.py",
             "scripts/migrate_dashboard_db.py",
             "scripts/backup.py",
             "scripts/restore.py",

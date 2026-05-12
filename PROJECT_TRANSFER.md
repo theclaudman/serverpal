@@ -58,7 +58,7 @@ Implemented:
 Known debt:
 
 - Some source files still contain mojibake in Russian comments/messages.
-- No DB migrations; SQLite schema changes are manual.
+- Dashboard DB has a simple versioned migration runner; broader migration tooling is still minimal.
 - Dashboard templates use string replacement rather than Jinja2.
 - Digest context cache is in-memory.
 - `knowledge_base.txt` is loaded broadly and should eventually become RAG/filtering.
@@ -117,6 +117,15 @@ Run default tests:
 cd server_ai-main\server_ai-main
 python -m pytest -q
 ```
+
+Run production-like env validation:
+
+```powershell
+python scripts\prod_check.py
+python scripts\prod_check.py --prod
+```
+
+`prod_check.py` validates the root `.env`; `--prod` adds stricter checks such as `COOKIE_SECURE=true` and an external Digest LLM key.
 
 Run the combined dev check from root:
 
@@ -214,6 +223,7 @@ Recently completed:
 - Move price type GUIDs from global required env into per-user/client DB settings with env fallback and account settings API.
 - Add account settings UI for editing per-user/client price type GUIDs.
 - Split Digest external LLM key into `DIGEST_OPENAI_API_KEY` while keeping `OPENAI_API_KEY` fallback.
+- Add `scripts/prod_check.py` for production-like `.env` validation.
 
 Recommended next order:
 
