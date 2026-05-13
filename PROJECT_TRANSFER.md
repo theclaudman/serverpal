@@ -226,6 +226,7 @@ Recently completed:
 - Split Digest external LLM key into `DIGEST_OPENAI_API_KEY` while keeping `OPENAI_API_KEY` fallback.
 - Remove stale service-local docs; keep `PROJECT_TRANSFER.md` as the canonical handoff/status file.
 - Align direct AI Bridge startup with `run_all.py` (`127.0.0.1:8001`).
+- Add clearer Digest LLM diagnostics for provider/model/base URL and HTTP response failures.
 - Add `scripts/prod_check.py` for production-like `.env` validation.
 
 Recommended next order:
