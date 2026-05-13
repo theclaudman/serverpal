@@ -227,6 +227,7 @@ Recently completed:
 - Remove stale service-local docs; keep `PROJECT_TRANSFER.md` as the canonical handoff/status file.
 - Align direct AI Bridge startup with `run_all.py` (`127.0.0.1:8001`).
 - Add clearer Digest LLM diagnostics for provider/model/base URL and HTTP response failures.
+- Shorten `README.md` to a compact project overview that points to `PROJECT_TRANSFER.md`.
 - Add `scripts/prod_check.py` for production-like `.env` validation.
 
 Recommended next order:
