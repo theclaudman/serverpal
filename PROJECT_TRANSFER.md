@@ -63,7 +63,7 @@ Known debt:
 - Dashboard templates use string replacement rather than Jinja2.
 - Digest context cache is in-memory.
 - `knowledge_base.txt` is loaded broadly and should eventually become RAG/filtering.
-- VPS deployment still needs Nginx + HTTPS + WebSocket proxy headers.
+- VPS deployment has a Compose production override, Nginx template, and `DEPLOYMENT.md`; it still needs a real domain, TLS paths, and production `.env` on the VPS.
 
 ## Environment
 
@@ -205,11 +205,11 @@ LMSTUDIO_BASE_URL=http://host.docker.internal:1234/v1
 
 For VPS production:
 
-- Add Nginx as reverse proxy.
-- Terminate HTTPS with Let's Encrypt.
-- Preserve WebSocket headers: `Upgrade`, `Connection`, and long read timeouts.
-- Keep AI Bridge and Digest API internal.
-- Add backup policy for dashboard SQLite, logs, and data volumes.
+- Validate `docker-compose.prod.yml` on the VPS with real domain and TLS certificate paths.
+- Terminate HTTPS with Let's Encrypt or another mounted certificate source.
+- Keep AI Bridge and Digest API internal behind Nginx.
+- Run `python scripts/prod_check.py --prod` against the real production `.env`.
+- Perform and document one backup/restore drill.
 
 ## Roadmap
 
@@ -233,8 +233,8 @@ Recently completed:
 Recommended next order:
 
 1. Clean remaining mojibake only where it is real file corruption, not console output.
-2. Discuss Docker shape before changing deployment.
-3. Add Nginx + HTTPS deployment docs/config if going VPS.
+2. Validate VPS deployment config on the target server.
+3. Run production `.env` hardening and backup/restore drill.
 4. Refresh dashboard UI for demo.
 5. Add product features: OData YAML UI, compute rules, manual events layer, external factors, RAG/filtering.
 

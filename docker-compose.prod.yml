@@ -1,0 +1,36 @@
+services:
+  dashboard:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      AI_SERVICE_URL: http://ai-bridge:8001
+      DIGEST_SERVICE_URL: http://digest-api:8002
+      ALLOWED_ORIGINS: https://${SERVERPAL_DOMAIN:?set SERVERPAL_DOMAIN in .env}
+      COOKIE_SECURE: "true"
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      REGISTRATION_ENABLED: "false"
+
+  ai-bridge:
+    restart: unless-stopped
+
+  digest-api:
+    restart: unless-stopped
+    environment:
+      ALLOWED_ORIGINS: https://${SERVERPAL_DOMAIN:?set SERVERPAL_DOMAIN in .env}
+      DIGEST_OPENAI_API_KEY: ${DIGEST_OPENAI_API_KEY:?set DIGEST_OPENAI_API_KEY in .env}
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SERVERPAL_DOMAIN: ${SERVERPAL_DOMAIN:?set SERVERPAL_DOMAIN in .env}
+    volumes:
+      - ./deploy/nginx/templates:/etc/nginx/templates:ro
+      - ${SERVERPAL_TLS_CERT_PATH:?set SERVERPAL_TLS_CERT_PATH in .env}:/etc/nginx/certs/fullchain.pem:ro
+      - ${SERVERPAL_TLS_KEY_PATH:?set SERVERPAL_TLS_KEY_PATH in .env}:/etc/nginx/certs/privkey.pem:ro
