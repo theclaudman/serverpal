@@ -45,6 +45,7 @@ Implemented:
 - Dashboard registration is closed by default through `REGISTRATION_ENABLED=false`.
 - Optional registration token access: set `REGISTRATION_TOKEN` and open `/register?token=<token>`.
 - `run_all.py` binds AI Bridge and Digest API to `127.0.0.1`.
+- Direct AI Bridge startup also binds to `127.0.0.1:8001` to match `run_all.py`.
 - Root `requirements-all.txt` is available for no-Docker local setup.
 - Dashboard SQLite schema is managed by a simple versioned migration runner.
 - Price type GUIDs are per-user/client settings in dashboard DB; root `.env` values are optional fallback only.
@@ -224,6 +225,7 @@ Recently completed:
 - Add account settings UI for editing per-user/client price type GUIDs.
 - Split Digest external LLM key into `DIGEST_OPENAI_API_KEY` while keeping `OPENAI_API_KEY` fallback.
 - Remove stale service-local docs; keep `PROJECT_TRANSFER.md` as the canonical handoff/status file.
+- Align direct AI Bridge startup with `run_all.py` (`127.0.0.1:8001`).
 - Add `scripts/prod_check.py` for production-like `.env` validation.
 
 Recommended next order:
