@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 
-def get_env_file() -> Path:
+def get_env_file() -> Path | None:
     current = Path(__file__).resolve()
     for candidate in (current.parent, *current.parents):
         if (candidate / "run_all.py").exists():
@@ -33,10 +33,12 @@ def get_env_file() -> Path:
                 f"Корневой .env не найден: {root_env}. "
                 "Создайте его из .env.example в корне проекта."
             )
-    raise RuntimeError("Не удалось найти корень проекта ServerPal")
+    return None
 
 
-load_dotenv(get_env_file(), override=False)
+env_file = get_env_file()
+if env_file is not None:
+    load_dotenv(env_file, override=False)
 
 SERVICE_API_KEY = os.environ.get("SERVICE_API_KEY", "").strip()
 if SERVICE_API_KEY in {"", "change-me", "change_me"}:

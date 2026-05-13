@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-def get_env_file() -> Path:
+def get_env_file() -> Path | None:
     current = Path(__file__).resolve()
     for candidate in (current.parent, *current.parents):
         if (candidate / "run_all.py").exists():
@@ -34,10 +34,12 @@ def get_env_file() -> Path:
                 f"Корневой .env не найден: {root_env}. "
                 "Создайте его из .env.example в корне проекта."
             )
-    raise RuntimeError("Не удалось найти корень проекта ServerPal")
+    return None
 
 
-load_dotenv(get_env_file(), override=False)
+env_file = get_env_file()
+if env_file is not None:
+    load_dotenv(env_file, override=False)
 
 # ---------------------------------------------------------------------------
 # Конфигурация провайдеров
@@ -176,7 +178,7 @@ def _get_openai_key() -> str:
             return key
 
     env_path = get_env_file()
-    if env_path.exists():
+    if env_path is not None and env_path.exists():
         with open(env_path, encoding="utf-8") as f:
             env_values = {}
             for line in f:

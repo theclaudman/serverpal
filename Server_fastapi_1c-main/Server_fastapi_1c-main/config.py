@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def get_env_file() -> Path:
+def get_env_file() -> Path | None:
     current = Path(__file__).resolve()
     for candidate in (current.parent, *current.parents):
         if (candidate / "run_all.py").exists():
@@ -14,7 +14,7 @@ def get_env_file() -> Path:
                 f"Корневой .env не найден: {root_env}. "
                 "Создайте его из .env.example в корне проекта."
             )
-    raise RuntimeError("Не удалось найти корень проекта ServerPal")
+    return None
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
