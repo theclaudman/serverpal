@@ -8,7 +8,7 @@ services:
       ALLOWED_ORIGINS: https://${SERVERPAL_DOMAIN:?set SERVERPAL_DOMAIN in .env}
       COOKIE_SECURE: "true"
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
-      REGISTRATION_ENABLED: "false"
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
 
   ai-bridge:
     restart: unless-stopped
