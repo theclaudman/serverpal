@@ -22,6 +22,7 @@ import websockets
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Query, Request, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -105,6 +106,7 @@ app = FastAPI()
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -317,6 +319,23 @@ def _render_register(error: str = "", username: str = "", onec_base_url: str = "
     return html
 
 
+def _with_app_shell(html: str, active: str) -> str:
+    assets = (
+        '<link rel="stylesheet" href="/static/app-shell.css">\n'
+        '<script defer src="/static/app-shell.js"></script>'
+    )
+    if "/static/app-shell.css" not in html:
+        html = html.replace("</head>", f"{assets}\n</head>")
+    if "<body" in html and "data-app-shell" not in html:
+        safe_active = html_lib.escape(active, quote=True)
+        html = html.replace("<body", f'<body data-app-shell="true" data-active="{safe_active}"', 1)
+    return html
+
+
+def _render_template_with_shell(path: Path, active: str) -> str:
+    return _with_app_shell(path.read_text(encoding="utf-8"), active)
+
+
 def _registration_allowed(token: str = "") -> bool:
     if settings.registration_enabled:
         return True
@@ -523,7 +542,7 @@ async def get_index(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
-    return HTMLResponse(content=INDEX_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_render_template_with_shell(DIGEST_TEMPLATE_PATH, "digest"))
 
 
 @app.get("/account/settings", response_class=HTMLResponse)
@@ -531,7 +550,7 @@ async def get_account_settings(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
-    return HTMLResponse(content=ACCOUNT_SETTINGS_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_render_template_with_shell(ACCOUNT_SETTINGS_TEMPLATE_PATH, "settings"))
 
 
 @app.get("/price-list", response_class=HTMLResponse)
@@ -574,7 +593,7 @@ async def get_price_list(request: Request):
 
         set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list", price_cache_key)
 
-    html = TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = _render_template_with_shell(TEMPLATE_PATH, "price")
     html = html.replace("/*@@PRICE_DATA@@*/[]",       json.dumps(price_list,       ensure_ascii=False))
     html = html.replace("/*@@GROUPS_LIST@@*/[]",      json.dumps(groups_list,      ensure_ascii=False))
     html = html.replace("/*@@PRICE_COLUMNS@@*/[]",    json.dumps(price_columns,    ensure_ascii=False))
@@ -632,7 +651,7 @@ async def get_managers_dashboard(
 
     period_str = f"{fmt(start_date)} — {fmt(end_date)}"
 
-    html = DASHBOARD_TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = _render_template_with_shell(DASHBOARD_TEMPLATE_PATH, "managers")
     html = html.replace("/*@@MANAGERS_DATA@@*/[]", json.dumps(managers_data, ensure_ascii=False))
     html = html.replace("/*@@TOTALS_DATA@@*/[]",   json.dumps(totals,        ensure_ascii=False))
     html = html.replace("/*@@PERIOD_TITLE@@*/",    period_str)
@@ -695,7 +714,7 @@ async def get_sales_report(
     period_str   = f"{fmt(start_date)} — {fmt(end_date)}"
     generated_at = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
-    html = SALES_TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = _render_template_with_shell(SALES_TEMPLATE_PATH, "sales")
     html = html.replace("/*@@SALES_DATA@@*/[]",       json.dumps(sales_data,       ensure_ascii=False))
     html = html.replace("/*@@DAILY_SALES_DATA@@*/[]", json.dumps(daily_sales_data, ensure_ascii=False))
     html = html.replace("/*@@PERIOD_DISPLAY@@*/",     period_str)
@@ -713,7 +732,7 @@ async def get_chat(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
-    return HTMLResponse(content=CHAT_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_render_template_with_shell(CHAT_TEMPLATE_PATH, "chat"))
 
 
 @app.post("/api/chat")
@@ -826,7 +845,7 @@ async def digest_page(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
-    return HTMLResponse(content=DIGEST_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_render_template_with_shell(DIGEST_TEMPLATE_PATH, "digest"))
 
 
 @app.get("/api/digest/providers")
@@ -951,7 +970,7 @@ async def prompts_page(request: Request):
     _, redirect = require_session(request)
     if redirect:
         return redirect
-    return HTMLResponse(content=PROMPTS_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_render_template_with_shell(PROMPTS_TEMPLATE_PATH, "prompts"))
 
 
 @app.get("/api/prompts")
