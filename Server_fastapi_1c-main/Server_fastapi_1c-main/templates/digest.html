@@ -416,6 +416,7 @@ const badgeStatus  = document.getElementById('badge-status');
 
     // Загрузить провайдеры
     loadProviders();
+    loadHistory();
 })();
 
 async function loadProviders() {
@@ -440,6 +441,70 @@ async function loadProviders() {
 }
 
 // ── Блокировка UI ──────────────────────────────────────
+async function loadHistory() {
+    try {
+        const r = await fetch('/api/digest/history');
+        const data = await r.json();
+        if (data.status !== 'ok' || !Array.isArray(data.messages) || !data.messages.length) {
+            return;
+        }
+
+        clearMessages();
+        data.messages.forEach(renderHistoryMessage);
+
+        if (lastDigestMarkdown) {
+            showBadge('Готово', 'ok');
+            enableQA();
+        }
+    } catch {
+        // История не критична для генерации нового дайджеста.
+    }
+}
+
+function renderHistoryMessage(item) {
+    const meta = item.meta || {};
+
+    if (item.role === 'digest') {
+        lastDigestMarkdown = item.content || '';
+        lastDigestDate = item.digest_date || '';
+        const metaText = [
+            meta.generated_at || item.created_at || '',
+            item.provider || '',
+            meta.anonymized ? 'анонимизирован' : '',
+        ].filter(Boolean).join(' · ');
+
+        addMsg(
+            'Дайджест — ' + (lastDigestDate || ''),
+            'ai',
+            marked.parse(lastDigestMarkdown),
+            'digest-body',
+            `<span>${escapeHtml(metaText)}</span>` +
+            `<a class="download-link" onclick="downloadDigest(lastDigestMarkdown, lastDigestDate)">` +
+            `<i class="bi bi-download"></i> Скачать .md</a>`
+        );
+        return;
+    }
+
+    if (item.role === 'user') {
+        addMsg('Вы', 'user', escapeHtml(item.content || ''));
+        return;
+    }
+
+    if (item.role === 'assistant') {
+        const ageMins = meta.context_age_minutes;
+        const ageText = ageMins !== undefined && ageMins !== null
+            ? `Данные: ${ageMins} мин. назад`
+            : '';
+        addMsg(
+            'Ответ',
+            'ai',
+            marked.parse(item.content || ''),
+            '',
+            ageText ? `<span>${escapeHtml(ageText)}</span>` : ''
+        );
+    }
+}
+
 function setLoading(on) {
     busy = on;
     btnGenerate.disabled = on;
@@ -465,6 +530,10 @@ function showBadge(text, type) {
 // ── Добавление сообщений в чат ─────────────────────────
 function clearWelcome() {
     if (welcome) welcome.style.display = 'none';
+}
+
+function clearMessages() {
+    chatArea.querySelectorAll('.msg').forEach(el => el.remove());
 }
 
 function addMsg(label, labelClass, bodyHtml, bodyClass, metaHtml) {
@@ -539,6 +608,7 @@ async function doGenerate() {
         removeEl(loader);
 
         if (data.status === 'ok') {
+            clearMessages();
             lastDigestMarkdown = data.digest;
             lastDigestDate = data.date;
 

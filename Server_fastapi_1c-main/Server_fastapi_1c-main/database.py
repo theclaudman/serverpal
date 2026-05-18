@@ -1,5 +1,6 @@
 import sqlite3
 import bcrypt
+import json
 from pathlib import Path
 from cryptography.fernet import Fernet
 from config import settings
@@ -143,3 +144,58 @@ def update_user_price_types(username: str, price_type_retail: str, price_type_wh
             """,
             (price_type_retail, price_type_wholesale, username),
         )
+
+
+def clear_digest_history(username: str) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM digest_messages WHERE username = ?", (username,))
+
+
+def add_digest_message(
+    username: str,
+    role: str,
+    content: str,
+    digest_date: str = "",
+    provider: str = "",
+    meta: dict | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO digest_messages (
+                username, role, content, digest_date, provider, meta_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                username,
+                role,
+                content,
+                digest_date or "",
+                provider or "",
+                json.dumps(meta or {}, ensure_ascii=False),
+            ),
+        )
+
+
+def get_digest_history(username: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, role, content, digest_date, provider, meta_json, created_at
+            FROM digest_messages
+            WHERE username = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (username,),
+        ).fetchall()
+
+    messages = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["meta"] = json.loads(item.pop("meta_json") or "{}")
+        except json.JSONDecodeError:
+            item["meta"] = {}
+        messages.append(item)
+    return messages

@@ -102,9 +102,33 @@ def _migration_002_user_price_types(conn: sqlite3.Connection, fernet_factory: Fe
     _ensure_column(conn, "users", "price_type_wholesale", "price_type_wholesale TEXT NOT NULL DEFAULT ''")
 
 
+def _migration_003_digest_history(conn: sqlite3.Connection, fernet_factory: FernetFactory) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS digest_messages (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            username    TEXT NOT NULL,
+            role        TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            digest_date TEXT NOT NULL DEFAULT '',
+            provider    TEXT NOT NULL DEFAULT '',
+            meta_json   TEXT NOT NULL DEFAULT '{}',
+            created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_digest_messages_user_created
+        ON digest_messages (username, created_at, id)
+        """
+    )
+
+
 MIGRATIONS: list[Migration] = [
     ("001_initial_dashboard_schema", _migration_001_initial_dashboard_schema),
     ("002_user_price_types", _migration_002_user_price_types),
+    ("003_digest_history", _migration_003_digest_history),
 ]
 
 

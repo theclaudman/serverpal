@@ -35,6 +35,7 @@ from database import (
     get_all_prompts, get_prompt, update_prompt,
     get_templates, create_template, delete_template,
     update_user_price_types,
+    clear_digest_history, add_digest_message, get_digest_history,
     _fernet,
 )
 from services.cache import get_cached, set_cached
@@ -837,6 +838,14 @@ async def api_digest_providers(request: Request):
     return JSONResponse(result)
 
 
+@app.get("/api/digest/history")
+async def api_digest_history(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    return JSONResponse({"status": "ok", "messages": get_digest_history(session["user"])})
+
+
 @app.post("/api/digest")
 @limiter.limit("5/hour")
 async def api_digest(request: Request, body: DigestBody):
@@ -862,6 +871,19 @@ async def api_digest(request: Request, body: DigestBody):
         provider=body.provider,
         system_prompt=system_prompt,
     )
+    if result.get("status") == "ok" and result.get("digest"):
+        clear_digest_history(session["user"])
+        add_digest_message(
+            session["user"],
+            "digest",
+            result["digest"],
+            digest_date=result.get("date") or body.date or "",
+            provider=result.get("provider") or body.provider,
+            meta={
+                "generated_at": result.get("generated_at", ""),
+                "anonymized": result.get("anonymized", False),
+            },
+        )
     return JSONResponse(result)
 
 
@@ -883,6 +905,25 @@ async def api_digest_ask(request: Request, body: AskBody):
         provider=body.provider,
         system_prompt=system_prompt,
     )
+    if result.get("status") == "ok" and result.get("answer"):
+        history = get_digest_history(session["user"])
+        digest_messages = [item for item in history if item.get("role") == "digest"]
+        digest_date = digest_messages[-1].get("digest_date", "") if digest_messages else ""
+        add_digest_message(
+            session["user"],
+            "user",
+            body.question,
+            digest_date=digest_date,
+            provider=body.provider,
+        )
+        add_digest_message(
+            session["user"],
+            "assistant",
+            result["answer"],
+            digest_date=digest_date,
+            provider=body.provider,
+            meta={"context_age_minutes": result.get("context_age_minutes")},
+        )
     return JSONResponse(result)
 
 
