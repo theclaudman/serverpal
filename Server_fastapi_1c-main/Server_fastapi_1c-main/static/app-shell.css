@@ -406,6 +406,17 @@ body[data-app-shell="true"] .btn-submit {
   box-shadow: 0 12px 24px rgba(20, 200, 223, 0.22);
 }
 
+body[data-app-shell="true"] .btn-secondary {
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--sp-blue) !important;
+  border: 1px solid rgba(20, 200, 223, 0.25) !important;
+}
+
+body[data-app-shell="true"] .btn-secondary:hover:not(:disabled) {
+  color: var(--sp-red) !important;
+  border-color: rgba(255, 77, 95, 0.28) !important;
+}
+
 body[data-app-shell="true"] input,
 body[data-app-shell="true"] select,
 body[data-app-shell="true"] textarea {

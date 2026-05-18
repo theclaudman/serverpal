@@ -363,6 +363,10 @@
             <i class="bi bi-lightning-charge-fill"></i>
             Сформировать
         </button>
+        <button class="btn btn-secondary" id="btn-clear-history" onclick="clearDigestHistory()">
+            <i class="bi bi-trash3"></i>
+            Очистить
+        </button>
 
         <span class="spacer"></span>
         <span class="status-badge" id="badge-status" style="display:none;"></span>
@@ -406,6 +410,7 @@ const welcome      = document.getElementById('welcome');
 const inpQuestion  = document.getElementById('inp-question');
 const btnAsk       = document.getElementById('btn-ask');
 const badgeStatus  = document.getElementById('badge-status');
+const btnClearHistory = document.getElementById('btn-clear-history');
 
 // ── Инициализация ──────────────────────────────────────
 (function init() {
@@ -510,6 +515,7 @@ function setLoading(on) {
     btnGenerate.disabled = on;
     btnAsk.disabled = on || !digestReady;
     inpQuestion.disabled = on || !digestReady;
+    btnClearHistory.disabled = on;
 }
 
 function enableQA() {
@@ -534,6 +540,18 @@ function clearWelcome() {
 
 function clearMessages() {
     chatArea.querySelectorAll('.msg').forEach(el => el.remove());
+}
+
+function resetDigestState() {
+    clearMessages();
+    digestReady = false;
+    lastDigestMarkdown = '';
+    lastDigestDate = '';
+    inpQuestion.value = '';
+    inpQuestion.disabled = true;
+    btnAsk.disabled = true;
+    badgeStatus.style.display = 'none';
+    if (welcome) welcome.style.display = '';
 }
 
 function addMsg(label, labelClass, bodyHtml, bodyClass, metaHtml) {
@@ -562,6 +580,25 @@ function addLoading(text) {
 
 function removeEl(el) {
     if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+async function clearDigestHistory() {
+    if (busy) return;
+    if (!confirm('Очистить текущую переписку с дайджестом?')) return;
+
+    setLoading(true);
+    try {
+        const r = await fetch('/api/digest/history', { method: 'DELETE' });
+        const data = await r.json();
+        if (data.status === 'ok') {
+            resetDigestState();
+        } else {
+            addMsg('Ошибка', 'error', data.message || data.error || 'Не удалось очистить историю', 'error-body');
+        }
+    } catch {
+        addMsg('Ошибка', 'error', 'Не удалось очистить историю дайджеста.', 'error-body');
+    }
+    setLoading(false);
 }
 
 // ── Скачивание дайджеста ───────────────────────────────

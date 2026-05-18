@@ -865,6 +865,15 @@ async def api_digest_history(request: Request):
     return JSONResponse({"status": "ok", "messages": get_digest_history(session["user"])})
 
 
+@app.delete("/api/digest/history")
+async def api_digest_history_clear(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    clear_digest_history(session["user"])
+    return JSONResponse({"status": "ok"})
+
+
 @app.post("/api/digest")
 @limiter.limit("5/hour")
 async def api_digest(request: Request, body: DigestBody):
