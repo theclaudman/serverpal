@@ -143,6 +143,36 @@ async def check_service(url: str, timeout: float = 5) -> bool:
 
 # ── Глобальные обработчики ────────────────────────────────────────────────────
 
+def _format_onec_login_error(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        status_code = exc.response.status_code
+        if status_code == 401:
+            return "1С отклонила логин или пароль (401 Unauthorized)"
+        if status_code == 403:
+            return "нет доступа к опубликованной базе 1С (403 Forbidden)"
+        if status_code == 404:
+            return "не найден OData-адрес 1С, проверьте URL базы (404 Not Found)"
+        if status_code >= 500:
+            return f"сервер 1С/Apache вернул ошибку {status_code}"
+        return f"сервер 1С вернул HTTP {status_code}"
+
+    if isinstance(exc, httpx.TimeoutException):
+        return "1С не ответила за 30 секунд, проверьте доступность базы и скорость OData"
+
+    if isinstance(exc, httpx.ConnectError):
+        return "не удалось подключиться к адресу 1С, проверьте URL, порт и сетевой доступ"
+
+    if isinstance(exc, httpx.RequestError):
+        detail = str(exc).strip()
+        return f"ошибка сетевого запроса к 1С: {detail}" if detail else "ошибка сетевого запроса к 1С"
+
+    if isinstance(exc, json.JSONDecodeError):
+        return "1С ответила не JSON-данными, проверьте OData-публикацию"
+
+    detail = str(exc).strip()
+    return f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Необработанная ошибка: {request.method} {request.url.path} — {exc}", exc_info=True)
@@ -251,12 +281,14 @@ def set_session_cookie(response: RedirectResponse, session_data: dict) -> None:
 
 def _render_login(error: str = "", username: str = "") -> str:
     html = LOGIN_TEMPLATE_PATH.read_text(encoding="utf-8")
+    safe_error = html_lib.escape(error)
+    safe_username = html_lib.escape(username, quote=True)
     error_block = (
-        f'<div class="error-msg"><i class="bi bi-exclamation-circle"></i>{error}</div>'
+        f'<div class="error-msg"><i class="bi bi-exclamation-circle"></i>{safe_error}</div>'
         if error else ""
     )
     html = html.replace("/*@@ERROR_BLOCK@@*/", error_block)
-    html = html.replace("/*@@USERNAME@@*/",    username)
+    html = html.replace("/*@@USERNAME@@*/",    safe_username)
     if not settings.registration_enabled:
         start = "<!-- @@REGISTER_LINK_START@@ -->"
         end = "<!-- @@REGISTER_LINK_END@@ -->"
@@ -333,9 +365,17 @@ async def login_submit(
     try:
         await fetch_employees()
     except Exception as e:
+        onec_error = _format_onec_login_error(e)
+        logger.error(
+            "Login 1C check failed for user=%s base_url=%s: %s",
+            username,
+            onec_base_url,
+            onec_error,
+            exc_info=True,
+        )
         return HTMLResponse(
             content=_render_login(
-                error=f"Не удалось подключиться к 1С: {e}",
+                error=f"Не удалось подключиться к 1С: {onec_error}",
                 username=username,
             ),
             status_code=502,
