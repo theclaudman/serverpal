@@ -70,6 +70,12 @@ Local working copy:
 C:\Users\klodc\Desktop\Serverpal — копия
 ```
 
+Current active local working copy for the latest session:
+
+```text
+C:\Users\klodc\Desktop\SP
+```
+
 VPS working copy:
 
 ```text
@@ -112,6 +118,24 @@ cd "C:\Users\klodc\Desktop\Serverpal — копия"
 python -m pip install -r requirements-all.txt
 python run_all.py
 ```
+
+Latest local setup in `C:\Users\klodc\Desktop\SP`:
+
+- Python 3.12.10 was used.
+- A local `.venv` was created and dependencies were installed from `requirements-all.txt`.
+- A local root `.env` was created for development only. It is ignored by git and must not be copied to production.
+- `REGISTRATION_ENABLED=true` was set locally so a user can be created at `http://127.0.0.1:9001/register`.
+- Local services were verified healthy:
+  - Dashboard: `http://127.0.0.1:9001/health`
+  - AI Bridge: `http://127.0.0.1:8001/health`
+  - Digest API: `http://127.0.0.1:8002/health`
+- For the local 1C publication on the same Windows PC, use this ServerPal 1C base URL during registration:
+
+```text
+http://127.0.0.1/Eu
+```
+
+Do not enter the full `/odata/standard.odata` URL in Dashboard user settings unless the Dashboard OData URL builder is updated to avoid duplication.
 
 `run_all.py` starts:
 
@@ -478,6 +502,7 @@ Fix applied:
 - `get_env_file()` returns `None` when root project is not found.
 - Pydantic settings then read real environment variables injected by Compose.
 - Digest `server.py` and `lm_client.py` only call `load_dotenv()` if an env file exists.
+- AI Bridge now creates `settings.data_dir` and `settings.logs_dir` before `logging.FileHandler(settings.logs_dir / "app.log")` is configured. This is required for clean local checkouts where `server_ai-main/server_ai-main/logs/` does not exist yet.
 
 Touched files:
 
@@ -570,13 +595,22 @@ Alias "/Eu" "C:/Users/klodc/Documents/Eu/"
 <Directory "C:/Users/klodc/Documents/Eu/">
     AllowOverride All
     Options None
-    Require ip 194.147.215.155
+    <RequireAny>
+        Require ip 194.147.215.155
+        Require local
+    </RequireAny>
     SetHandler 1c-application
     ManagedApplicationDescriptor "C:/Users/klodc/Documents/Eu/default.vrd"
 </Directory>
 ```
 
-This allowlist is critical. It means only VPS IP can access the 1C publication.
+This allowlist is critical. It means only the VPS IP and the same Windows PC can access the 1C publication. `Require local` was added for local ServerPal development through `http://127.0.0.1/Eu`.
+
+Backup made during local setup:
+
+```text
+C:\Apache24\conf\httpd.conf.serverpal-local.bak
+```
 
 Validation:
 
@@ -595,6 +629,19 @@ WWW-Authenticate: Basic realm="1C:Enterprise 8.3"
 ```
 
 `401` is correct: endpoint is reachable and asks for 1C credentials.
+
+Local same-PC validation:
+
+```powershell
+curl.exe -k -I --max-time 5 http://127.0.0.1/Eu/odata/standard.odata/
+```
+
+Expected local result:
+
+```text
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="1C:Enterprise 8.3"
+```
 
 ## Windows Apache TLS / win-acme
 
@@ -759,15 +806,47 @@ Likely heavy calls include:
 
 Optimization roadmap:
 
-1. Add detailed timing around each OData request in `services/onec_client.py`.
-2. Log payload sizes/counts per endpoint.
-3. Cache dictionaries/catalogs aggressively.
-4. Add date filters everywhere possible.
-5. Reduce default periods for demo pages.
-6. Avoid loading whole tabular sections when not needed.
-7. Add pagination or incremental loading for price list.
-8. Warm cache before demo.
-9. Prefer server/Fresh 1C for production demo, not file DB over home internet.
+Implemented diagnostic logging in Dashboard:
+
+- `Server_fastapi_1c-main/Server_fastapi_1c-main/services/onec_client.py`
+  now logs every OData request through `safe_get()`:
+  - caller operation, for example `fetch_nomenclature`;
+  - entity path;
+  - HTTP status;
+  - row count from `value`;
+  - response byte size;
+  - request duration.
+- `Server_fastapi_1c-main/Server_fastapi_1c-main/main.py`
+  now logs `/price-list` stages:
+  - `price-list cache_hit`;
+  - `price-list fetch_done`;
+  - `price-list build_done`;
+  - `price-list json_done`;
+  - `price-list page_done`.
+
+Next diagnostic step:
+
+1. Open `http://127.0.0.1:9001/price-list` once on the local setup.
+2. Read the latest Dashboard log:
+
+```powershell
+Get-Content Server_fastapi_1c-main\Server_fastapi_1c-main\logs\dashboard.log -Tail 80
+```
+
+3. Use the timings to decide whether the main bottleneck is 1C/OData, Python build, JSON injection, or browser rendering.
+
+Optimization roadmap:
+
+1. Confirm real `/price-list` bottlenecks using the new logs.
+2. Cache dictionaries/catalogs aggressively.
+3. Add date filters everywhere possible.
+4. Reduce default periods for demo pages.
+5. Avoid loading whole tabular sections when not needed.
+6. Add pagination or incremental loading for price list.
+7. Move `/price-list` to a lightweight HTML page plus `/api/price-list?page=...&page_size=...&search=...`.
+8. Add local SQLite/cache-backed price list snapshots if OData remains slow.
+9. Warm cache before demo.
+10. Prefer server/Fresh 1C for production demo, not file DB over home internet.
 
 ## Git / VPS Update Workflow
 
@@ -983,7 +1062,7 @@ Current good state:
 - ServerPal main site uses HTTPS.
 - AI Bridge and Digest API are internal-only in production.
 - 1C test publication uses HTTPS on `8443`.
-- Apache `/Eu` publication allows only VPS IP `194.147.215.155`.
+- Apache `/Eu` publication allows VPS IP `194.147.215.155` and local same-PC access through `Require local`.
 - 1C endpoint returns `401` from VPS, indicating credentials are required.
 
 Still important:
@@ -1042,7 +1121,7 @@ Near-term engineering:
 
 1. Add `/admin` panel with registration toggle and user management.
 2. Add account/connection settings UI to edit saved 1C base URL without direct SQLite commands.
-3. Add timing/size logging for every OData request.
+3. Open `/price-list` locally once and inspect the new OData/price-list timing logs in `logs/dashboard.log`.
 4. Optimize `/price-list` first; it currently takes about 7.5 minutes.
 5. Add cache warming for demo.
 6. Polish new light UI on heavy table/report pages.

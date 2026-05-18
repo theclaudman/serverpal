@@ -746,3 +746,110 @@ Do not break:
 - 1C publication protection by IP allowlist.
 - Digest history scoped to authenticated user.
 - Static UI shell availability at `/static/app-shell.css` and `/static/app-shell.js`.
+
+## 21. Local Windows Development Run In `C:\Users\klodc\Desktop\SP`
+
+Goal:
+
+- Start the current local working copy without Docker while 1C/Apache runs on the same Windows PC.
+
+What was done:
+
+- Created local `.venv`.
+- Installed `requirements-all.txt`.
+- Created a local root `.env` for development only.
+- Set local registration open so a user can be created through:
+
+```text
+http://127.0.0.1:9001/register
+```
+
+- Verified health endpoints:
+
+```text
+http://127.0.0.1:8001/health
+http://127.0.0.1:8002/health
+http://127.0.0.1:9001/health
+```
+
+Important local 1C URL:
+
+```text
+http://127.0.0.1/Eu
+```
+
+Do not enter the full `/odata/standard.odata` URL for Dashboard registration unless the Dashboard URL builder is updated.
+
+Apache change for local work:
+
+- `C:\Apache24\conf\httpd.conf` previously allowed only the VPS IP for `/Eu`.
+- Added `Require local` while keeping `Require ip 194.147.215.155`.
+- Backup file created:
+
+```text
+C:\Apache24\conf\httpd.conf.serverpal-local.bak
+```
+
+Validation:
+
+```powershell
+curl.exe -k -I --max-time 5 http://127.0.0.1/Eu/odata/standard.odata/
+```
+
+Expected:
+
+```text
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="1C:Enterprise 8.3"
+```
+
+Fix discovered during local startup:
+
+- AI Bridge crashed on a clean checkout because `logging.FileHandler(settings.logs_dir / "app.log")` ran before the `logs/` directory existed.
+- `server_ai-main/server_ai-main/app/main.py` now creates `settings.data_dir` and `settings.logs_dir` before logging setup.
+
+## 22. Price List Diagnostic Logging
+
+Goal:
+
+- Measure why `/price-list` is slow before redesigning it.
+
+What was added:
+
+- `Server_fastapi_1c-main/Server_fastapi_1c-main/services/onec_client.py`
+  logs every Dashboard OData request:
+  - operation name;
+  - entity path;
+  - HTTP status;
+  - row count;
+  - response byte size;
+  - request duration.
+
+- `Server_fastapi_1c-main/Server_fastapi_1c-main/main.py`
+  logs `/price-list` stages:
+  - cache hit;
+  - OData fetch summary;
+  - Python build duration;
+  - JSON payload sizes;
+  - final HTML size and total duration.
+
+Next step for the following session:
+
+1. Open:
+
+```text
+http://127.0.0.1:9001/price-list
+```
+
+2. Read:
+
+```powershell
+Get-Content Server_fastapi_1c-main\Server_fastapi_1c-main\logs\dashboard.log -Tail 80
+```
+
+3. Decide whether to prioritize OData filtering/caching or the UI/API rewrite.
+
+Likely next implementation:
+
+- Make `/price-list` a lightweight HTML page.
+- Add `/api/price-list` with pagination, search, and later local SQLite/cache snapshots.
