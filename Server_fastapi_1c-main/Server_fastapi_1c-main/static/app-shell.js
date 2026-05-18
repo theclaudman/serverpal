@@ -82,7 +82,6 @@
         </div>
         <a href="/dashboard/managers" class="sp-view-all">Смотреть все аномалии <i class="bi bi-arrow-right"></i></a>
       </section>
-      <section class="sp-empty-card"></section>
     `;
   }
 

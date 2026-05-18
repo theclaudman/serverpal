@@ -474,7 +474,7 @@ function renderHistoryMessage(item) {
         ].filter(Boolean).join(' · ');
 
         addMsg(
-            'Дайджест — ' + (lastDigestDate || ''),
+            '',
             'ai',
             marked.parse(lastDigestMarkdown),
             'digest-body',
@@ -541,7 +541,7 @@ function addMsg(label, labelClass, bodyHtml, bodyClass, metaHtml) {
     const div = document.createElement('div');
     div.className = 'msg';
     div.innerHTML =
-        `<div class="msg-label ${labelClass}">${label}</div>` +
+        (label ? `<div class="msg-label ${labelClass}">${label}</div>` : '') +
         `<div class="msg-body ${bodyClass || ''}">${bodyHtml}</div>` +
         (metaHtml ? `<div class="msg-meta">${metaHtml}</div>` : '');
     chatArea.appendChild(div);
@@ -620,7 +620,7 @@ async function doGenerate() {
             ].filter(Boolean).join(' · ');
 
             addMsg(
-                'Дайджест — ' + data.date,
+                '',
                 'ai',
                 html,
                 'digest-body',
