@@ -1,11 +1,16 @@
 import httpx
 import base64
+import inspect
+import logging
+import time
 from contextvars import ContextVar
 
 # Контекстные переменные — устанавливаются из сессии для каждого запроса
 _ctx_base_url: ContextVar[str] = ContextVar("onec_base_url", default="")
 _ctx_user:     ContextVar[str] = ContextVar("onec_user",     default="")
 _ctx_password: ContextVar[str] = ContextVar("onec_password", default="")
+
+logger = logging.getLogger("dashboard.odata")
 
 
 def set_credentials(onec_base_url: str, user: str, password: str) -> None:
@@ -26,11 +31,59 @@ def _password() -> str:
 
 async def safe_get(url: str) -> dict:
     """Выполняет асинхронный GET запрос к 1С OData."""
+    operation = _caller_name()
+    entity = _entity_name(url)
+    started = time.perf_counter()
+    response = None
     auth = httpx.BasicAuth(_user(), _password())
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.get(url, auth=auth)
-        response.raise_for_status()
-        return response.json()
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(url, auth=auth)
+            response.raise_for_status()
+            payload = response.json()
+
+        rows = payload.get("value", [])
+        row_count = len(rows) if isinstance(rows, list) else 0
+        size_bytes = len(response.content)
+        duration = time.perf_counter() - started
+        logger.info(
+            "OData %s entity=%s status=%s rows=%s bytes=%s duration=%.3fs",
+            operation,
+            entity,
+            response.status_code,
+            row_count,
+            size_bytes,
+            duration,
+        )
+        return payload
+    except Exception:
+        duration = time.perf_counter() - started
+        status = response.status_code if response is not None else "n/a"
+        size_bytes = len(response.content) if response is not None else 0
+        logger.exception(
+            "OData %s entity=%s failed status=%s bytes=%s duration=%.3fs",
+            operation,
+            entity,
+            status,
+            size_bytes,
+            duration,
+        )
+        raise
+
+
+def _caller_name() -> str:
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back and frame.f_back.f_back else None
+    return caller.f_code.co_name if caller else "safe_get"
+
+
+def _entity_name(url: str) -> str:
+    marker = "/odata/standard.odata/"
+    if marker in url:
+        tail = url.split(marker, 1)[1]
+    else:
+        tail = url.rsplit("/", 1)[-1]
+    return tail.split("?", 1)[0]
 
 
 def get_client():

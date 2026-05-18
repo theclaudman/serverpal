@@ -555,6 +555,7 @@ async def get_account_settings(request: Request):
 
 @app.get("/price-list", response_class=HTMLResponse)
 async def get_price_list(request: Request):
+    page_started = time.perf_counter()
     session, redirect = require_session(request)
     if redirect:
         return redirect
@@ -571,33 +572,77 @@ async def get_price_list(request: Request):
     cached = get_cached("price", cache_key, "price_list", price_cache_key)
     if cached:
         price_list, groups_hierarchy, groups_list, price_columns = cached
+        logger.info(
+            "price-list cache_hit rows=%s groups=%s columns=%s",
+            len(price_list),
+            len(groups_list),
+            len(price_columns),
+        )
     else:
         try:
+            fetch_started = time.perf_counter()
             nomenclature = await fetch_nomenclature()
             prices = await fetch_prices(price_type_keys=list(price_columns_map.keys()))
             stocks = await fetch_stocks()
             reserves = await fetch_reserves()
             groups = await fetch_groups()
+            logger.info(
+                "price-list fetch_done nomenclature=%s prices=%s stocks=%s reserves=%s groups=%s duration=%.3fs",
+                len(nomenclature),
+                len(prices),
+                len(stocks),
+                len(reserves),
+                len(groups),
+                time.perf_counter() - fetch_started,
+            )
         except Exception as e:
             logger.error(f"Ошибка подключения к 1С: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail=f"Ошибка подключения к 1С: {e}")
 
         try:
+            build_started = time.perf_counter()
             price_list       = build_price_list(nomenclature, prices, stocks, reserves, groups, price_columns_map)
             groups_hierarchy = build_groups_hierarchy(groups)
             groups_list      = get_unique_groups(price_list)
             price_columns    = list(price_columns_map.values())
+            logger.info(
+                "price-list build_done rows=%s groups=%s columns=%s duration=%.3fs",
+                len(price_list),
+                len(groups_list),
+                len(price_columns),
+                time.perf_counter() - build_started,
+            )
         except Exception as e:
             logger.error(f"Ошибка обработки данных: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {e}")
 
         set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list", price_cache_key)
 
+    json_started = time.perf_counter()
+    price_data_json = json.dumps(price_list, ensure_ascii=False)
+    groups_list_json = json.dumps(groups_list, ensure_ascii=False)
+    price_columns_json = json.dumps(price_columns, ensure_ascii=False)
+    groups_hierarchy_json = json.dumps(groups_hierarchy, ensure_ascii=False)
+    logger.info(
+        "price-list json_done price_bytes=%s groups_bytes=%s columns_bytes=%s hierarchy_bytes=%s duration=%.3fs",
+        len(price_data_json.encode("utf-8")),
+        len(groups_list_json.encode("utf-8")),
+        len(price_columns_json.encode("utf-8")),
+        len(groups_hierarchy_json.encode("utf-8")),
+        time.perf_counter() - json_started,
+    )
+
     html = _render_template_with_shell(TEMPLATE_PATH, "price")
-    html = html.replace("/*@@PRICE_DATA@@*/[]",       json.dumps(price_list,       ensure_ascii=False))
-    html = html.replace("/*@@GROUPS_LIST@@*/[]",      json.dumps(groups_list,      ensure_ascii=False))
-    html = html.replace("/*@@PRICE_COLUMNS@@*/[]",    json.dumps(price_columns,    ensure_ascii=False))
-    html = html.replace("/*@@GROUPS_HIERARCHY@@*/[]", json.dumps(groups_hierarchy, ensure_ascii=False))
+    html = html.replace("/*@@PRICE_DATA@@*/[]",       price_data_json)
+    html = html.replace("/*@@GROUPS_LIST@@*/[]",      groups_list_json)
+    html = html.replace("/*@@PRICE_COLUMNS@@*/[]",    price_columns_json)
+    html = html.replace("/*@@GROUPS_HIERARCHY@@*/[]", groups_hierarchy_json)
+    logger.info(
+        "price-list page_done rows=%s html_bytes=%s total_duration=%.3fs",
+        len(price_list),
+        len(html.encode("utf-8")),
+        time.perf_counter() - page_started,
+    )
 
     return HTMLResponse(content=html)
 
