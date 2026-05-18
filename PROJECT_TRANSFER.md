@@ -2,6 +2,8 @@
 
 Canonical handoff/status file for future Codex/GPT sessions and developers. Keep this file current whenever architecture, startup, env, deployment, security, 1C connectivity, or operational flow changes. Keep `README.md` short; this file is the detailed operational handoff.
 
+For chronological implementation history, see [IMPLEMENTATION_HISTORY.md](IMPLEMENTATION_HISTORY.md).
+
 ## Executive Summary
 
 ServerPal is an AI finance assistant for 1C:UNF 3.0. It connects to 1C through OData, builds dashboard/report data, sends compact context to LLM services, and exposes a web UI for executives.
@@ -16,6 +18,12 @@ Current production-like state:
   `https://client1.1rpanel.fun:8443/Eu`.
 - Apache allowlist permits the 1C publication only from the VPS IP `194.147.215.155`.
 - OData endpoint from VPS returns `401 Unauthorized`, which is correct because 1C is reachable and asking for credentials.
+- Dashboard UI was restyled with a light AI-dashboard shell:
+  - `/` now opens the financial digest workspace instead of the old card menu;
+  - protected pages are wrapped by a shared sidebar/topbar/right-panel shell from `static/app-shell.css` and `static/app-shell.js`;
+  - login/register remain standalone pages.
+- Digest conversations are persisted in Dashboard SQLite and can be cleared from the digest page.
+- Login errors now show user-facing 1C connection reasons where possible.
 
 Current biggest product/tech risk:
 
@@ -90,8 +98,10 @@ Current VPS compose mode:
 
 ```bash
 cd /opt/serverpal
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
 ```
+
+Use `--force-recreate` for deploys after app changes. A previous deploy recreated app containers but left the old Nginx container running; public traffic returned `502 Bad Gateway` until Nginx was recreated. Recreating the full compose stack is currently the safest operational default.
 
 ## Services And Entrypoints
 
@@ -131,7 +141,7 @@ VPS production command:
 
 ```bash
 cd /opt/serverpal
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
 ```
 
 Expected `docker compose ps` shape:
@@ -220,6 +230,20 @@ Nginx responsibilities:
 - proxy `/ws/chat` with WebSocket headers;
 - set `Host`, `X-Real-IP`, `X-Forwarded-*`;
 - use longer proxy timeouts for chat/digest/report flows.
+
+Known deploy nuance:
+
+- If `https://1rpanel.fun` returns Nginx `502` while `docker ps` shows Dashboard healthy, test from inside Nginx:
+
+```bash
+docker exec serverpal-nginx-1 wget -S -O- http://dashboard:9001/health
+```
+
+- If this returns `200 OK`, recreate Nginx or the full stack:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
+```
 
 ## Environment Policy
 
@@ -319,10 +343,90 @@ Check what the Dashboard container sees:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec dashboard env | grep REGISTRATION_ENABLED
 ```
 
+Known user URL issue:
+
+- Login can hang for about 30 seconds and return `POST /login -> 502` if the user's saved `onec_base_url` is old or wrong.
+- This happened for user `res1`, which had:
+
+```text
+http://client1.1rpanel.fun/Eu
+```
+
+- It was fixed to:
+
+```text
+https://client1.1rpanel.fun:8443/Eu
+```
+
+- Check saved user URLs:
+
+```bash
+docker exec serverpal-dashboard-1 python -c "import sqlite3; conn=sqlite3.connect('/data/users.db'); conn.row_factory=sqlite3.Row; [print(dict(r)) for r in conn.execute('select username, onec_base_url from users')]"
+```
+
+- Fix a user URL:
+
+```bash
+docker exec serverpal-dashboard-1 python -c "import sqlite3; conn=sqlite3.connect('/data/users.db'); conn.execute(\"update users set onec_base_url='https://client1.1rpanel.fun:8443/Eu' where username='res1'\"); conn.commit()"
+```
+
+Login behavior:
+
+- Dashboard verifies 1C during login by calling an OData employees request.
+- The ServerPal username/password entered on `/login` are also used as the 1C Basic Auth credentials for that session.
+- If 1C rejects or times out, the login page should now show a more specific reason.
+
 Recommended future improvement:
 
 - Add `/admin` panel and move registration toggle from env to DB-backed system settings.
 - Keep env as bootstrap/default only.
+
+## Dashboard UI / Digest State
+
+Current UI model:
+
+- Dashboard still uses plain HTML templates rendered by FastAPI string replacement.
+- There is no React/Vue/build step and no shared Jinja layout.
+- A shared light AI-dashboard shell is injected server-side by `_render_template_with_shell(...)` in `main.py`.
+- Shared shell assets:
+
+```text
+Server_fastapi_1c-main/Server_fastapi_1c-main/static/app-shell.css
+Server_fastapi_1c-main/Server_fastapi_1c-main/static/app-shell.js
+```
+
+- FastAPI mounts static files at `/static`.
+- The shell adds:
+  - left navigation;
+  - top title/user area;
+  - static right panel "Сегодня важно";
+  - responsive layout.
+- Login/register are intentionally not wrapped in the shell.
+
+Current route behavior:
+
+- `/` renders the digest page in the new shell.
+- `/digest` renders the same digest workspace.
+- `/price-list`, `/dashboard/managers`, `/report/sales`, `/chat`, `/account/settings`, `/prompts` are wrapped by the same shell.
+
+Digest conversation persistence:
+
+- Digest history is stored in Dashboard SQLite (`/data/users.db` in Docker).
+- Migration `003_digest_history` creates `digest_messages`.
+- API:
+  - `GET /api/digest/history` returns current user's stored digest conversation.
+  - `DELETE /api/digest/history` clears current user's stored digest conversation.
+- When a new digest is generated successfully:
+  - current user's previous digest history is cleared;
+  - the new digest is saved as the current conversation root.
+- When a question is answered successfully:
+  - the user question and assistant answer are saved.
+- The digest page has an "Очистить" button that calls `DELETE /api/digest/history`, resets the UI, and disables Q&A until a digest is generated again.
+
+Important limitation:
+
+- This is not a full multi-thread archive. Only one current digest conversation is stored per user. A future archive should add a `digest_threads` table and store messages by `thread_id`.
+- Digest API still keeps its analysis context in memory. If Digest API restarts, the Dashboard may show saved history, but asking a new question may require regenerating the digest first.
 
 ## Proposed Admin Panel
 
@@ -681,7 +785,8 @@ Update VPS:
 ```bash
 cd /opt/serverpal
 git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate
+curl https://1rpanel.fun/health
 ```
 
 GitHub HTTPS auth note:
@@ -893,9 +998,12 @@ Still important:
 ## Known Issues / Technical Debt
 
 - Heavy pages are too slow on file 1C over internet.
-- OData URL for at least one user may still be stored as old HTTP URL.
+- OData URL can be stale per user; verify `/data/users.db` if login hangs or returns `502`.
 - No admin panel yet for registration toggle/user management.
 - Dashboard templates use string replacement rather than Jinja2.
+- New light UI shell is injected over old standalone templates; some report/table pages may still need visual polish.
+- Right panel "Сегодня важно" is static in v1 and not yet connected to real anomaly detection.
+- Digest history stores only one current conversation per user; no multi-thread archive yet.
 - Some comments/messages may show mojibake in PowerShell; only fix real file corruption visible in browser/logs/prompts.
 - Digest context cache is in-memory.
 - `knowledge_base.txt` is loaded broadly; eventually needs RAG/filtering.
@@ -906,26 +1014,42 @@ Still important:
 
 Immediate:
 
-1. Update/create ServerPal user with correct 1C URL:
+1. After every deploy, verify:
+
+```bash
+curl https://1rpanel.fun/health
+```
+
+2. Smoke-test:
+   - login;
+   - `/digest` generate, ask, refresh, clear history;
+   - `/chat`;
+   - `/price-list`;
+   - `/dashboard/managers`;
+   - `/report/sales`;
+   - `/account/settings`.
+3. Confirm all users have correct 1C URL:
 
 ```text
 https://client1.1rpanel.fun:8443/Eu
 ```
 
-2. Confirm full login/registration flow with the HTTPS OData URL.
-3. Close `REGISTRATION_ENABLED=false` after user creation.
-4. Close PC external port 80 if not needed immediately.
-5. Verify from non-VPS network that `client1.1rpanel.fun:8443/Eu/...` is forbidden.
+4. Keep `REGISTRATION_ENABLED=false` outside onboarding windows.
+5. Close PC external port 80 if not needed immediately.
+6. Verify from non-VPS network that `client1.1rpanel.fun:8443/Eu/...` is forbidden.
 
 Near-term engineering:
 
 1. Add `/admin` panel with registration toggle and user management.
-2. Add timing/size logging for every OData request.
-3. Optimize `/price-list` first; it currently takes about 7.5 minutes.
-4. Add cache warming for demo.
-5. Add account/connection settings UI to edit saved 1C base URL without recreating user.
-6. Add a safer first-admin bootstrap command/script.
-7. Add VPS backup timer and restore drill.
+2. Add account/connection settings UI to edit saved 1C base URL without direct SQLite commands.
+3. Add timing/size logging for every OData request.
+4. Optimize `/price-list` first; it currently takes about 7.5 minutes.
+5. Add cache warming for demo.
+6. Polish new light UI on heavy table/report pages.
+7. Add real anomaly calculations for the "Сегодня важно" right panel.
+8. Add multi-thread digest conversation archive if users need selectable old conversations.
+9. Add a safer first-admin bootstrap command/script.
+10. Add VPS backup timer and restore drill.
 
 Product/deployment:
 
@@ -951,4 +1075,6 @@ Product/deployment:
 - Keep local no-Docker workflow working.
 - Keep production public ingress limited to Nginx `80/443`.
 - Keep 1C publication protected by IP allowlist.
-
+- Keep `/static/app-shell.css` and `/static/app-shell.js` available when using the light dashboard shell.
+- Keep digest history endpoints scoped to the authenticated user.
+- Do not make the static "Сегодня важно" panel trigger extra heavy OData calls until a deliberate anomaly pipeline is implemented.

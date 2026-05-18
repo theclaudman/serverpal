@@ -122,7 +122,7 @@ def _demask_with_names(text: str, client_id: str,
 
 def _parse_args():
     parser = argparse.ArgumentParser(
-        description="Утренний финансовый дайджест из 1С"
+        description="Финансовый дайджест из 1С"
     )
     parser.add_argument("--date", type=str, default=None,
         help="Дата в формате YYYY-MM-DD (по умолчанию вчера)")
