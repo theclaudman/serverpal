@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"
     registration_enabled: bool = False
     registration_token: str = ""
+    admin_usernames: str = ""
+    admin_password: str = ""
     
 settings = Settings()
 

@@ -212,3 +212,156 @@ def get_digest_history(username: str) -> list[dict]:
             item["meta"] = {}
         messages.append(item)
     return messages
+
+
+def add_chat_message(
+    username: str,
+    role: str,
+    content: str,
+    channel: str = "chat",
+    meta: dict | None = None,
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO chat_messages (
+                username, role, content, channel, meta_json
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                username,
+                role,
+                content,
+                channel or "chat",
+                json.dumps(meta or {}, ensure_ascii=False),
+            ),
+        )
+
+
+def get_admin_overview(limit: int = 20) -> dict:
+    with get_connection() as conn:
+        users = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT
+                    u.username,
+                    u.onec_base_url,
+                    u.price_type_retail,
+                    u.price_type_wholesale,
+                    u.digest_provider,
+                    u.digest_model,
+                    COALESCE(cm.chat_count, 0) AS chat_count,
+                    COALESCE(dm.digest_count, 0) AS digest_count,
+                    CASE
+                        WHEN cm.last_chat_at IS NULL THEN dm.last_digest_at
+                        WHEN dm.last_digest_at IS NULL THEN cm.last_chat_at
+                        WHEN cm.last_chat_at > dm.last_digest_at THEN cm.last_chat_at
+                        ELSE dm.last_digest_at
+                    END AS last_activity_at
+                FROM users u
+                LEFT JOIN (
+                    SELECT username, COUNT(*) AS chat_count, MAX(created_at) AS last_chat_at
+                    FROM chat_messages
+                    GROUP BY username
+                ) cm ON cm.username = u.username
+                LEFT JOIN (
+                    SELECT username, COUNT(*) AS digest_count, MAX(created_at) AS last_digest_at
+                    FROM digest_messages
+                    GROUP BY username
+                ) dm ON dm.username = u.username
+                ORDER BY COALESCE(last_activity_at, '') DESC, u.username ASC
+                """
+            ).fetchall()
+        ]
+
+        chat_messages = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT id, username, role, content, channel, meta_json, created_at
+                FROM chat_messages
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        ]
+        digest_messages = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT id, username, role, content, digest_date, provider, meta_json, created_at
+                FROM digest_messages
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        ]
+
+    return {
+        "users": users,
+        "recent_chat_messages": _parse_meta(chat_messages),
+        "recent_digest_messages": _parse_meta(digest_messages),
+    }
+
+
+def get_admin_user_detail(username: str, limit: int = 100) -> dict | None:
+    with get_connection() as conn:
+        user = conn.execute(
+            """
+            SELECT username, onec_base_url, price_type_retail, price_type_wholesale,
+                   digest_provider, digest_model
+            FROM users
+            WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
+        if not user:
+            return None
+
+        chat_messages = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT id, role, content, channel, meta_json, created_at
+                FROM chat_messages
+                WHERE username = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (username, limit),
+            ).fetchall()
+        ]
+        digest_messages = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT id, role, content, digest_date, provider, meta_json, created_at
+                FROM digest_messages
+                WHERE username = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (username, limit),
+            ).fetchall()
+        ]
+
+    return {
+        "user": dict(user),
+        "chat_messages": _parse_meta(chat_messages),
+        "digest_messages": _parse_meta(digest_messages),
+    }
+
+
+def _parse_meta(items: list[dict]) -> list[dict]:
+    parsed = []
+    for item in items:
+        try:
+            item["meta"] = json.loads(item.pop("meta_json") or "{}")
+        except json.JSONDecodeError:
+            item["meta"] = {}
+        parsed.append(item)
+    return parsed

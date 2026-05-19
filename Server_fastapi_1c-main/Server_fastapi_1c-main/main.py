@@ -7,6 +7,7 @@ import hashlib
 import html as html_lib
 import json
 import logging
+import secrets
 import time
 import traceback
 import uvicorn
@@ -38,6 +39,7 @@ from database import (
     update_user_price_types,
     update_user_digest_settings,
     clear_digest_history, add_digest_message, get_digest_history,
+    add_chat_message, get_admin_overview, get_admin_user_detail,
     _fernet,
 )
 from services.cache import get_cached, set_cached
@@ -135,6 +137,7 @@ DASHBOARD_TEMPLATE_PATH = Path("templates/managers_dashboard.html")
 SALES_TEMPLATE_PATH     = Path("templates/sales_report.html")
 PROMPTS_TEMPLATE_PATH   = Path("templates/prompts.html")
 ACCOUNT_SETTINGS_TEMPLATE_PATH = Path("templates/account_settings.html")
+ADMIN_TEMPLATE_PATH = Path("templates/admin_developer.html")
 
 
 # ── Утилиты ───────────────────────────────────────────────────────────────────
@@ -261,6 +264,160 @@ def require_session(request: Request):
         return None, RedirectResponse(url="/login", status_code=302)
     onec_password = decrypt_onec_password(session["password"])
     set_credentials(session["onec_base_url"], session["user"], onec_password)
+    return session, None
+
+
+def _admin_usernames() -> set[str]:
+    return {
+        username.strip()
+        for username in settings.admin_usernames.split(",")
+        if username.strip()
+    }
+
+
+def _admin_configured() -> bool:
+    return bool(_admin_usernames() and settings.admin_password.strip())
+
+
+def encode_admin_session(username: str) -> str:
+    return encode_session({"admin": True, "user": username})
+
+
+def get_admin_session(request: Request) -> dict | None:
+    session = decode_session(request.cookies.get("admin_session", ""))
+    if not session or session.get("admin") is not True:
+        return None
+    if session.get("user") not in _admin_usernames():
+        return None
+    return session
+
+
+def set_admin_cookie(response: RedirectResponse, username: str) -> None:
+    response.set_cookie(
+        key="admin_session",
+        value=encode_admin_session(username),
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=60 * 60 * 12,
+    )
+
+
+def require_admin(request: Request):
+    session = get_admin_session(request)
+    if not session:
+        return None, RedirectResponse(url="/admin/login", status_code=302)
+    return session, None
+
+
+def require_admin_api(request: Request):
+    session = get_admin_session(request)
+    if not session:
+        return None, JSONResponse({"error": "Unauthorized"}, status_code=401)
+    return session, None
+
+
+def verify_admin_credentials(username: str, password: str) -> bool:
+    if not _admin_configured():
+        return False
+    if username not in _admin_usernames():
+        return False
+    return secrets.compare_digest(password, settings.admin_password)
+
+
+def _render_admin_login(error: str = "", username: str = "") -> str:
+    safe_error = html_lib.escape(error)
+    safe_username = html_lib.escape(username, quote=True)
+    error_block = f'<div class="admin-login-error">{safe_error}</div>' if error else ""
+    disabled_note = ""
+    if not _admin_configured():
+        disabled_note = '<div class="admin-login-error">Admin login is not configured.</div>'
+    return f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Developer Login - ServerPal</title>
+        <style>
+            * {{ box-sizing: border-box; }}
+            body {{
+                margin: 0;
+                min-height: 100vh;
+                display: grid;
+                place-items: center;
+                background: #f5fbff;
+                color: #121827;
+                font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            }}
+            .admin-login {{
+                width: min(420px, calc(100vw - 28px));
+                border: 1px solid rgba(20, 200, 223, 0.22);
+                border-radius: 8px;
+                background: #fff;
+                padding: 28px;
+                box-shadow: 0 22px 70px rgba(62, 111, 160, 0.14);
+            }}
+            h1 {{ margin: 0 0 6px; font-size: 24px; }}
+            p {{ margin: 0 0 22px; color: #647391; }}
+            label {{ display: block; margin: 14px 0 7px; font-weight: 700; font-size: 13px; }}
+            input {{
+                width: 100%;
+                min-height: 44px;
+                border: 1px solid rgba(20, 200, 223, 0.28);
+                border-radius: 8px;
+                padding: 0 12px;
+                font-size: 15px;
+            }}
+            button {{
+                width: 100%;
+                min-height: 44px;
+                border: 0;
+                border-radius: 8px;
+                margin-top: 20px;
+                background: #14c8df;
+                color: #fff;
+                font-weight: 800;
+                cursor: pointer;
+            }}
+            .admin-login-error {{
+                border: 1px solid rgba(255, 77, 95, 0.28);
+                background: rgba(255, 77, 95, 0.08);
+                color: #b42334;
+                border-radius: 8px;
+                padding: 10px 12px;
+                margin: 12px 0;
+                font-size: 13px;
+            }}
+        </style>
+    </head>
+    <body>
+        <form class="admin-login" method="post" action="/admin/login">
+            <h1>Developer Login</h1>
+            <p>Separate access for ServerPal monitoring.</p>
+            {disabled_note}
+            {error_block}
+            <label for="username">Login</label>
+            <input id="username" name="username" value="{safe_username}" autocomplete="username" required>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <button type="submit">Open admin panel</button>
+        </form>
+    </body>
+    </html>
+    """
+
+
+def is_admin_session(session: dict | None) -> bool:
+    return bool(session and session.get("user") in _admin_usernames())
+
+
+def require_legacy_user_admin(request: Request):
+    session, redirect = require_session(request)
+    if redirect:
+        return None, redirect
+    if not is_admin_session(session):
+        return None, JSONResponse({"error": "Forbidden"}, status_code=403)
     return session, None
 
 
@@ -930,6 +1087,7 @@ async def post_chat(request: Request, body: ChatMessage):
 
     _parsed = urlparse(session["onec_base_url"])
     onec_ip = _parsed.netloc + _parsed.path.rstrip("/")
+    add_chat_message(session["user"], "user", body.prompt, channel="post")
     try:
         answer = await ai_chat(
             body.prompt,
@@ -938,6 +1096,7 @@ async def post_chat(request: Request, body: ChatMessage):
             onec_ip,
             system_prompt=system_prompt,
         )
+        add_chat_message(session["user"], "assistant", answer, channel="post")
     except Exception as e:
         logger.error(f"Ошибка AI-чата: {e}", exc_info=True)
         return JSONResponse({"error": str(e)}, status_code=502)
@@ -983,6 +1142,9 @@ async def ws_chat_proxy(websocket: WebSocket):
                 # Получаем промпт от браузера
                 raw = await websocket.receive_text()
                 data = json.loads(raw)
+                prompt = (data.get("prompt") or "").strip()
+                if prompt:
+                    add_chat_message(session["user"], "user", prompt, channel="websocket")
 
                 # Дополняем credentials и system_prompt
                 data["credentials"] = {
@@ -996,12 +1158,30 @@ async def ws_chat_proxy(websocket: WebSocket):
                 await ai_ws.send(json.dumps(data, ensure_ascii=False))
 
                 # Проксируем ответы обратно в браузер
+                assistant_parts = []
                 while True:
                     response = await ai_ws.recv()
                     await websocket.send_text(response)
 
                     event = json.loads(response)
+                    if event.get("type") == "token" and event.get("content"):
+                        assistant_parts.append(str(event["content"]))
                     if event.get("type") in ("done", "error"):
+                        if event.get("type") == "done" and assistant_parts:
+                            add_chat_message(
+                                session["user"],
+                                "assistant",
+                                "".join(assistant_parts),
+                                channel="websocket",
+                            )
+                        elif event.get("type") == "error":
+                            add_chat_message(
+                                session["user"],
+                                "error",
+                                str(event.get("message") or ""),
+                                channel="websocket",
+                                meta={"prompt": prompt[:500]},
+                            )
                         break
 
     except WebSocketDisconnect:
@@ -1171,6 +1351,69 @@ async def health():
 
 
 # ── Библиотека промптов ──────────────────────────────────────────────────────
+
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    if get_admin_session(request):
+        return RedirectResponse(url="/admin/developer", status_code=302)
+    return HTMLResponse(content=_render_admin_login())
+
+
+@app.post("/admin/login")
+@limiter.limit("5/minute")
+async def admin_login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(default=""),
+):
+    username = username.strip()
+    if not verify_admin_credentials(username, password):
+        return HTMLResponse(
+            content=_render_admin_login(error="Invalid admin login or password.", username=username),
+            status_code=401,
+        )
+    response = RedirectResponse(url="/admin/developer", status_code=302)
+    set_admin_cookie(response, username)
+    return response
+
+
+@app.get("/admin/logout")
+async def admin_logout():
+    response = RedirectResponse(url="/admin/login", status_code=302)
+    response.delete_cookie("admin_session", secure=settings.cookie_secure, samesite=settings.cookie_samesite)
+    return response
+
+
+@app.get("/admin/developer", response_class=HTMLResponse)
+async def admin_developer_page(request: Request):
+    session, response = require_admin(request)
+    if response:
+        return response
+    return HTMLResponse(content=ADMIN_TEMPLATE_PATH.read_text(encoding="utf-8"))
+
+
+@app.get("/api/admin/overview")
+async def api_admin_overview(request: Request, limit: int = Query(default=30, ge=1, le=200)):
+    _, response = require_admin_api(request)
+    if response:
+        return response
+    return JSONResponse(get_admin_overview(limit=limit))
+
+
+@app.get("/api/admin/users/{username}")
+async def api_admin_user_detail(
+    request: Request,
+    username: str,
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    _, response = require_admin_api(request)
+    if response:
+        return response
+    detail = get_admin_user_detail(username, limit=limit)
+    if not detail:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+    return JSONResponse(detail)
+
 
 @app.get("/prompts", response_class=HTMLResponse)
 async def prompts_page(request: Request):

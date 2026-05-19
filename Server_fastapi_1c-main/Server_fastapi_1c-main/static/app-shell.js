@@ -115,7 +115,6 @@
           <div class="sp-heading">
             <span class="sp-dot"></span>
             <h1>${page.title}</h1>
-            <p><i class="bi bi-shield-check"></i> Данные из 1С обновлены: 14.05.2026 10:30</p>
           </div>
           <a class="sp-user" href="/logout">
             <span><i class="bi bi-person-fill"></i></span>

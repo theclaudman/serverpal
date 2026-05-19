@@ -74,6 +74,17 @@ assert response.headers["location"] == "/login"
 
 response = client.post("/register", data={"onec_base_url": "http://127.0.0.1/unf", "username": "user", "password": "pass"})
 assert response.status_code == 403
+assert client.get("/admin/developer").status_code == 302
+assert client.get("/api/admin/overview").status_code == 401
+
+main.settings.admin_usernames = "devadmin"
+main.settings.admin_password = "strong-admin-password"
+assert client.post("/admin/login", data={"username": "devadmin", "password": "wrong"}).status_code == 401
+response = client.post("/admin/login", data={"username": "devadmin", "password": "strong-admin-password"})
+assert response.status_code == 302
+assert response.headers["location"] == "/admin/developer"
+assert client.get("/admin/developer").status_code == 200
+assert client.get("/api/admin/overview").status_code == 200
 print("ok")
 ''',
     )
@@ -103,6 +114,7 @@ assert applied == [
     "002_user_price_types",
     "003_digest_history",
     "004_digest_model_settings",
+    "005_chat_history",
 ]
 
 with sqlite3.connect(db_path) as conn:
@@ -115,9 +127,12 @@ with sqlite3.connect(db_path) as conn:
         "002_user_price_types",
         "003_digest_history",
         "004_digest_model_settings",
+        "005_chat_history",
     } <= versions
     user_columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
     assert {"price_type_retail", "price_type_wholesale", "digest_provider", "digest_model"} <= user_columns
+    chat_columns = {row[1] for row in conn.execute("PRAGMA table_info(chat_messages)").fetchall()}
+    assert {"username", "role", "content", "channel", "meta_json", "created_at"} <= chat_columns
 
 assert run_migrations(db_path, fernet_factory) == []
 
@@ -132,6 +147,7 @@ assert applied == [
     "002_user_price_types",
     "003_digest_history",
     "004_digest_model_settings",
+    "005_chat_history",
 ]
 
 with sqlite3.connect(old_db_path) as conn:

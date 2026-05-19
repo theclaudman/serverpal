@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developer Monitor - ServerPal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #f6fbff;
+            color: #121827;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            padding: 22px;
+        }
+        .admin-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .admin-topbar h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+        .admin-topbar p {
+            margin: 4px 0 0;
+            color: #647391;
+        }
+        .logout {
+            color: #315a91;
+            text-decoration: none;
+            border: 1px solid rgba(20, 200, 223, 0.24);
+            background: white;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-weight: 700;
+        }
+        .admin-page {
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            gap: 18px;
+            min-height: calc(100vh - 210px);
+        }
+        .panel {
+            border: 1px solid rgba(20, 200, 223, 0.2);
+            background: rgba(255,255,255,0.78);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .panel-header {
+            min-height: 54px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(20, 200, 223, 0.16);
+        }
+        .panel-header h2 {
+            margin: 0;
+            font-size: 15px;
+            letter-spacing: 0;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .metric {
+            border: 1px solid rgba(20, 200, 223, 0.2);
+            background: rgba(255,255,255,0.72);
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .metric strong {
+            display: block;
+            font-size: 24px;
+        }
+        .metric span {
+            color: #647391;
+            font-size: 12px;
+        }
+        .user-list {
+            display: grid;
+        }
+        .user-row {
+            width: 100%;
+            border: 0;
+            border-bottom: 1px solid rgba(20, 200, 223, 0.12);
+            background: transparent;
+            text-align: left;
+            padding: 12px 14px;
+            cursor: pointer;
+            color: #121827;
+        }
+        .user-row:hover,
+        .user-row.active {
+            background: rgba(20, 200, 223, 0.1);
+        }
+        .user-row strong {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .user-row small {
+            display: block;
+            color: #647391;
+            overflow-wrap: anywhere;
+            line-height: 1.35;
+        }
+        .badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            border-radius: 999px;
+            background: rgba(49, 90, 145, 0.08);
+            color: #315a91;
+            padding: 2px 8px;
+            font-size: 12px;
+        }
+        .content-area {
+            display: grid;
+            gap: 18px;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            padding: 16px;
+        }
+        .field {
+            border: 1px solid rgba(18, 24, 39, 0.08);
+            border-radius: 8px;
+            padding: 12px;
+            background: rgba(255,255,255,0.56);
+        }
+        .field span {
+            display: block;
+            color: #647391;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .field strong {
+            display: block;
+            overflow-wrap: anywhere;
+            font-size: 13px;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(20, 200, 223, 0.16);
+        }
+        .tab {
+            border: 1px solid rgba(20, 200, 223, 0.24);
+            background: #fff;
+            color: #315a91;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .tab.active {
+            background: #14c8df;
+            color: white;
+        }
+        .messages {
+            display: grid;
+            gap: 10px;
+            padding: 16px;
+            max-height: 560px;
+            overflow: auto;
+        }
+        .message {
+            border: 1px solid rgba(18, 24, 39, 0.08);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.72);
+            padding: 12px;
+        }
+        .message-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: #647391;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        .message-body {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            line-height: 1.45;
+            font-size: 13px;
+            max-height: 220px;
+            overflow: auto;
+        }
+        .empty {
+            padding: 22px;
+            color: #647391;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+        .refresh {
+            border: 1px solid rgba(20, 200, 223, 0.24);
+            background: white;
+            color: #315a91;
+            border-radius: 8px;
+            min-height: 38px;
+            padding: 0 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        @media (max-width: 980px) {
+            .admin-page,
+            .summary,
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="admin-topbar">
+        <div>
+            <h1>Developer Monitor</h1>
+            <p>Users, 1C bases, chat and digest conversations.</p>
+        </div>
+        <a class="logout" href="/admin/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
+    </header>
+    <main class="admin-page">
+        <section>
+            <div class="summary">
+                <div class="metric"><strong id="metric-users">0</strong><span>Пользователей</span></div>
+                <div class="metric"><strong id="metric-chat">0</strong><span>Chat сообщений</span></div>
+                <div class="metric"><strong id="metric-digest">0</strong><span>Digest сообщений</span></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><i class="bi bi-people"></i> Пользователи и базы</h2>
+                </div>
+                <div id="users" class="user-list"></div>
+            </div>
+        </section>
+
+        <section class="content-area">
+            <div class="toolbar">
+                <button class="refresh" id="refresh-btn"><i class="bi bi-arrow-clockwise"></i> Обновить</button>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 id="detail-title"><i class="bi bi-person-badge"></i> Выберите пользователя</h2>
+                </div>
+                <div id="details" class="detail-grid">
+                    <div class="empty">Данные пользователя появятся после выбора слева.</div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="tabs">
+                    <button class="tab active" data-tab="chat"><i class="bi bi-chat-dots"></i> Chat</button>
+                    <button class="tab" data-tab="digest"><i class="bi bi-journal-text"></i> Digest</button>
+                </div>
+                <div id="messages" class="messages"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const state = { overview: null, selectedUser: null, detail: null, tab: 'chat' };
+        const usersEl = document.getElementById('users');
+        const detailsEl = document.getElementById('details');
+        const messagesEl = document.getElementById('messages');
+        const detailTitleEl = document.getElementById('detail-title');
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function formatDate(value) {
+            if (!value) return 'нет активности';
+            return value.replace('T', ' ');
+        }
+
+        async function loadOverview() {
+            const response = await fetch('/api/admin/overview?limit=50');
+            if (!response.ok) throw new Error('Нет доступа или ошибка загрузки');
+            state.overview = await response.json();
+            renderOverview();
+            if (!state.selectedUser && state.overview.users.length) {
+                await selectUser(state.overview.users[0].username);
+            }
+        }
+
+        function renderOverview() {
+            const users = state.overview.users || [];
+            document.getElementById('metric-users').textContent = users.length;
+            document.getElementById('metric-chat').textContent =
+                users.reduce((sum, user) => sum + Number(user.chat_count || 0), 0);
+            document.getElementById('metric-digest').textContent =
+                users.reduce((sum, user) => sum + Number(user.digest_count || 0), 0);
+
+            if (!users.length) {
+                usersEl.innerHTML = '<div class="empty">Пользователей пока нет.</div>';
+                return;
+            }
+
+            usersEl.innerHTML = users.map((user) => `
+                <button class="user-row ${user.username === state.selectedUser ? 'active' : ''}" data-username="${escapeHtml(user.username)}">
+                    <strong>${escapeHtml(user.username)}</strong>
+                    <small>${escapeHtml(user.onec_base_url || 'База не задана')}</small>
+                    <div class="badges">
+                        <span class="badge">chat ${Number(user.chat_count || 0)}</span>
+                        <span class="badge">digest ${Number(user.digest_count || 0)}</span>
+                        <span class="badge">${escapeHtml(formatDate(user.last_activity_at))}</span>
+                    </div>
+                </button>
+            `).join('');
+
+            usersEl.querySelectorAll('.user-row').forEach((row) => {
+                row.addEventListener('click', () => selectUser(row.dataset.username));
+            });
+        }
+
+        async function selectUser(username) {
+            state.selectedUser = username;
+            renderOverview();
+            const response = await fetch(`/api/admin/users/${encodeURIComponent(username)}?limit=200`);
+            if (!response.ok) throw new Error('Не удалось загрузить пользователя');
+            state.detail = await response.json();
+            renderDetail();
+            renderMessages();
+        }
+
+        function renderDetail() {
+            const user = state.detail.user;
+            detailTitleEl.innerHTML = `<i class="bi bi-person-badge"></i> ${escapeHtml(user.username)}`;
+            detailsEl.innerHTML = `
+                <div class="field"><span>1C base URL</span><strong>${escapeHtml(user.onec_base_url || '')}</strong></div>
+                <div class="field"><span>Digest provider</span><strong>${escapeHtml(user.digest_provider || '')}</strong></div>
+                <div class="field"><span>Digest model</span><strong>${escapeHtml(user.digest_model || 'по умолчанию')}</strong></div>
+                <div class="field"><span>Retail price type</span><strong>${escapeHtml(user.price_type_retail || 'не выбрано')}</strong></div>
+                <div class="field"><span>Wholesale price type</span><strong>${escapeHtml(user.price_type_wholesale || 'не выбрано')}</strong></div>
+            `;
+        }
+
+        function renderMessages() {
+            if (!state.detail) {
+                messagesEl.innerHTML = '<div class="empty">Выберите пользователя.</div>';
+                return;
+            }
+            const items = state.tab === 'chat'
+                ? state.detail.chat_messages
+                : state.detail.digest_messages;
+
+            if (!items.length) {
+                messagesEl.innerHTML = '<div class="empty">Сообщений пока нет.</div>';
+                return;
+            }
+
+            messagesEl.innerHTML = items.map((item) => {
+                const label = state.tab === 'chat'
+                    ? `${item.role} / ${item.channel || 'chat'}`
+                    : `${item.role} / ${item.provider || 'provider'} / ${item.digest_date || 'date'}`;
+                return `
+                    <article class="message">
+                        <div class="message-meta">
+                            <strong>${escapeHtml(label)}</strong>
+                            <span>${escapeHtml(formatDate(item.created_at))}</span>
+                        </div>
+                        <div class="message-body">${escapeHtml(item.content)}</div>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        document.querySelectorAll('.tab').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                state.tab = tab.dataset.tab;
+                document.querySelectorAll('.tab').forEach((item) => item.classList.toggle('active', item === tab));
+                renderMessages();
+            });
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            loadOverview().catch((error) => {
+                messagesEl.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+            });
+        });
+
+        loadOverview().catch((error) => {
+            usersEl.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+        });
+    </script>
+</body>
+</html>
