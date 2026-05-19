@@ -425,6 +425,47 @@ body[data-app-shell="true"] textarea {
   border-color: rgba(20, 200, 223, 0.28) !important;
 }
 
+body[data-app-shell="true"] .loading,
+body[data-app-shell="true"] .md-loading,
+body[data-app-shell="true"] .loading-overlay {
+  background: rgba(255,255,255,0.82) !important;
+  color: var(--sp-blue) !important;
+  border-color: rgba(20, 200, 223, 0.22) !important;
+}
+
+body[data-app-shell="true"] .spinner,
+body[data-app-shell="true"] .md-loading-spinner {
+  border-color: rgba(49, 90, 145, 0.22) !important;
+  border-top-color: var(--sp-cyan) !important;
+}
+
+body[data-app-shell="true"] .status-badge,
+body[data-app-shell="true"] .ws-status,
+body[data-app-shell="true"] .status {
+  color: var(--sp-blue) !important;
+  background: rgba(255,255,255,0.7) !important;
+  border-color: rgba(20, 200, 223, 0.2) !important;
+}
+
+body[data-app-shell="true"] .status-badge.ok,
+body[data-app-shell="true"] .status.ok,
+body[data-app-shell="true"] .ws-status.connected {
+  color: #15803d !important;
+  background: rgba(34, 197, 94, 0.1) !important;
+}
+
+body[data-app-shell="true"] .status-badge.err,
+body[data-app-shell="true"] .status.error,
+body[data-app-shell="true"] .ws-status.disconnected {
+  color: var(--sp-red) !important;
+  background: rgba(255, 77, 95, 0.1) !important;
+}
+
+body[data-app-shell="true"] .status-badge.warn {
+  color: #a16207 !important;
+  background: rgba(251, 191, 36, 0.16) !important;
+}
+
 body[data-app-shell="true"] .chat-area,
 body[data-app-shell="true"] .messages {
   color: var(--sp-text) !important;
@@ -441,6 +482,27 @@ body[data-app-shell="true"] .message {
   background: rgba(255,255,255,0.74) !important;
   color: var(--sp-text) !important;
   border-color: rgba(20, 200, 223, 0.18) !important;
+}
+
+body[data-app-shell="true"] .msg-body strong,
+body[data-app-shell="true"] .message strong,
+body[data-app-shell="true"] .msg-body h2,
+body[data-app-shell="true"] .msg-body h3 {
+  color: var(--sp-text) !important;
+}
+
+body[data-app-shell="true"] .msg-label.system,
+body[data-app-shell="true"] .msg-label.ai,
+body[data-app-shell="true"] .msg-meta .download-link {
+  color: var(--sp-cyan-dark) !important;
+}
+
+body[data-app-shell="true"] .msg-label.user {
+  color: var(--sp-orange) !important;
+}
+
+body[data-app-shell="true"] .msg-label.error {
+  color: var(--sp-red) !important;
 }
 
 body[data-app-shell="true"] .welcome {
@@ -468,6 +530,11 @@ body[data-app-shell="true"] .welcome i {
 body[data-app-shell="true"] .input-bar {
   background: transparent !important;
   border-color: rgba(20, 200, 223, 0.16) !important;
+}
+
+body[data-app-shell="true"] .back-link,
+body[data-app-shell="true"] .sp-content > a[href="/"] {
+  display: none !important;
 }
 
 body[data-app-shell="true"] .input-bar input[type="text"] {
