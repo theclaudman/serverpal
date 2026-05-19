@@ -10,7 +10,6 @@ from cryptography.fernet import Fernet
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT / ".env"
-ZERO_GUID = "00000000-0000-0000-0000-000000000000"
 PLACEHOLDERS = {"", "change-me", "change_me", "changeme", "replace-me", "replace_me"}
 
 
@@ -138,11 +137,6 @@ def main() -> int:
         errors.append("DIGEST_OPENAI_API_KEY must be set for Digest external provider in --prod mode")
     elif not digest_key and openai_key and openai_key != "lm-studio":
         warnings.append("Digest external provider is using OPENAI_API_KEY fallback; prefer DIGEST_OPENAI_API_KEY")
-
-    for name in ("PRICE_TYPE_RETAIL", "PRICE_TYPE_WHOLESALE"):
-        value = env.get(name, "").strip()
-        if value == ZERO_GUID:
-            warnings.append(f"{name} is zero GUID; per-client settings should contain real price GUIDs")
 
     if warnings:
         print("Warnings:")

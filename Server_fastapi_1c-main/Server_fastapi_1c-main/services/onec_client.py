@@ -173,6 +173,23 @@ async def fetch_prices(client=None, price_type_keys: list = []) -> list:
     return (await safe_get(url)).get("value", [])
 
 
+async def fetch_price_types(client=None) -> list:
+    entities = (
+        "Catalog_ВидыЦенНоменклатуры",
+        "Catalog_ВидыЦен",
+    )
+    for entity in entities:
+        url = (
+            f"{_base_url()}/{entity}"
+            f"?$format=json"
+            f"&$select=Ref_Key,Description"
+        )
+        rows = (await safe_get(url, optional_statuses={404})).get("value", [])
+        if rows:
+            return rows
+    return []
+
+
 async def fetch_stocks(client=None) -> list:
     url = (
         f"{_base_url()}/AccumulationRegister_ЗапасыНаСкладах/Balance"

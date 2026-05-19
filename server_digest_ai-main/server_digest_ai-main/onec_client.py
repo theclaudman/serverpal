@@ -4,9 +4,11 @@ onec_client.py — запросы к 1С УНФ через OData
 Работает с любой базой клиента, не только 127.0.0.1
 """
 
+from datetime import datetime, timedelta
+import os
+
 import requests
 from requests.auth import HTTPBasicAuth
-from datetime import datetime, timedelta
 
 
 # ---------------------------------------------------------------------------
@@ -165,9 +167,14 @@ def check_connection(base_url: str, login: str, password: str) -> bool:
 
 if __name__ == "__main__":
 
-    BASE_URL = "http://127.0.0.1/Eu/odata/standard.odata"
-    LOGIN    = "admin_r"
-    PASSWORD = "123"
+    BASE_URL = os.environ.get("DIGEST_ONEC_BASE_URL", "").strip()
+    LOGIN = os.environ.get("DIGEST_ONEC_LOGIN", "").strip()
+    PASSWORD = os.environ.get("DIGEST_ONEC_PASSWORD", "")
+    if not BASE_URL or not LOGIN:
+        raise SystemExit(
+            "Set DIGEST_ONEC_BASE_URL and DIGEST_ONEC_LOGIN to run this live test. "
+            "Set DIGEST_ONEC_PASSWORD too if required."
+        )
 
     print("Проверка подключения к 1С...")
     if not check_connection(BASE_URL, LOGIN, PASSWORD):
@@ -281,9 +288,14 @@ def fetch_contractor_names(base_url: str, login: str, password: str,
 
 
 if __name__ == "__main__":
-    BASE_URL = "http://127.0.0.1/Eu/odata/standard.odata"
-    LOGIN    = "admin_r"
-    PASSWORD = "123"
+    BASE_URL = os.environ.get("DIGEST_ONEC_BASE_URL", "").strip()
+    LOGIN = os.environ.get("DIGEST_ONEC_LOGIN", "").strip()
+    PASSWORD = os.environ.get("DIGEST_ONEC_PASSWORD", "")
+    if not BASE_URL or not LOGIN:
+        raise SystemExit(
+            "Set DIGEST_ONEC_BASE_URL and DIGEST_ONEC_LOGIN to run this live test. "
+            "Set DIGEST_ONEC_PASSWORD too if required."
+        )
 
     # Смотрим какие поля есть в заказах покупателей
     result = _get(BASE_URL, LOGIN, PASSWORD,

@@ -28,8 +28,6 @@ class Settings(BaseSettings):
     digest_service_url: str = "http://127.0.0.1:8002"
     service_api_key: str = ""
     dashboard_db_path: str = "users.db"
-    price_type_retail: str = ""
-    price_type_wholesale: str = ""
     allowed_origins: str = "http://127.0.0.1:9001"
     cookie_secure: bool = False
     cookie_samesite: str = "lax"

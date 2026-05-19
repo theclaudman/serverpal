@@ -30,8 +30,9 @@ digest.py — точка входа утреннего дайджеста
   LLM_PROVIDER = "lmstudio"    # "lmstudio" | "openai"
 """
 
-import sys
 import argparse
+import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -46,10 +47,10 @@ LLM_PROVIDER = "lmstudio"   # "lmstudio" | "openai"
 # Подключение к 1С — меняй здесь
 # ---------------------------------------------------------------------------
 
-BASE_URL  = "http://127.0.0.1/Eu/odata/standard.odata"
-LOGIN     = "admin_r"
-PASSWORD  = "123"
-CLIENT_ID = "client_001"
+BASE_URL = os.environ.get("DIGEST_ONEC_BASE_URL", "").strip()
+LOGIN = os.environ.get("DIGEST_ONEC_LOGIN", "").strip()
+PASSWORD = os.environ.get("DIGEST_ONEC_PASSWORD", "")
+CLIENT_ID = os.environ.get("DIGEST_CLIENT_ID", "cli").strip() or "cli"
 
 # ---------------------------------------------------------------------------
 # Пути
@@ -91,6 +92,22 @@ def _load_prompt(filename: str) -> str:
         )
     with open(path, encoding="utf-8") as f:
         return f.read().strip()
+
+
+def _require_cli_onec_config() -> None:
+    missing = [
+        name for name, value in (
+            ("DIGEST_ONEC_BASE_URL", BASE_URL),
+            ("DIGEST_ONEC_LOGIN", LOGIN),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            "Digest CLI requires 1C connection env vars: "
+            + ", ".join(missing)
+            + ". Set DIGEST_ONEC_PASSWORD too if the 1C user has a password."
+        )
 
 
 def _demask_with_names(text: str, client_id: str,
@@ -253,6 +270,7 @@ def run_digest(target_date: datetime = None,
 
     _provider  = provider  if provider  is not None else LLM_PROVIDER
     _anonymize = anonymize if anonymize is not None else ANONYMIZE
+    _require_cli_onec_config()
 
     if target_date is None:
         target_date = datetime.now() - timedelta(days=1)

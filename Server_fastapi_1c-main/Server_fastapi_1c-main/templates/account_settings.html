@@ -102,7 +102,8 @@
             color: var(--text-muted);
             pointer-events: none;
         }
-        .form-input {
+        .form-input,
+        .form-select {
             width: 100%;
             padding: 12px 14px 12px 42px;
             background: var(--bg-secondary);
@@ -110,9 +111,16 @@
             border-radius: 8px;
             color: var(--text-primary);
             font-size: 0.95em;
+        }
+        .form-input {
             font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
         }
-        .form-input:focus {
+        .form-select {
+            appearance: none;
+            cursor: pointer;
+        }
+        .form-input:focus,
+        .form-select:focus {
             outline: none;
             border-color: var(--accent-green);
             box-shadow: 0 0 0 3px rgba(74,222,128,0.1);
@@ -207,7 +215,7 @@
 
         <section class="panel">
             <p class="section-title">Виды цен для прайс-листа</p>
-            <p class="section-note">Укажите GUID видов цен из текущей базы 1С. Если поле пустое, приложение попробует использовать fallback из корневого .env.</p>
+            <p class="section-note">Выберите виды цен из текущей базы 1С. Эти значения применяются только к текущему аккаунту.</p>
 
             <form id="settings-form">
                 <div class="form-grid">
@@ -215,18 +223,22 @@
                         <label class="form-label" for="price-type-retail">Розничная цена</label>
                         <div class="input-wrapper">
                             <i class="bi bi-tag input-icon"></i>
-                            <input id="price-type-retail" class="form-input" name="price_type_retail" type="text" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
+                            <select id="price-type-retail" class="form-select" name="price_type_retail">
+                                <option value="">Не выбрано</option>
+                            </select>
                         </div>
-                        <div class="field-hint">GUID вида розничной цены в 1С.</div>
+                        <div class="field-hint">Колонка прайс-листа для розничной цены.</div>
                     </div>
 
                     <div>
                         <label class="form-label" for="price-type-wholesale">Оптовая цена</label>
                         <div class="input-wrapper">
                             <i class="bi bi-tags input-icon"></i>
-                            <input id="price-type-wholesale" class="form-input" name="price_type_wholesale" type="text" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off">
+                            <select id="price-type-wholesale" class="form-select" name="price_type_wholesale">
+                                <option value="">Не выбрано</option>
+                            </select>
                         </div>
-                        <div class="field-hint">GUID вида оптовой цены в 1С.</div>
+                        <div class="field-hint">Колонка прайс-листа для оптовой цены.</div>
                     </div>
                 </div>
 
@@ -254,26 +266,49 @@
         const statusEl = document.getElementById('status');
         const saveBtn = document.getElementById('save-btn');
         const effectiveList = document.getElementById('effective-list');
-        const guidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        let priceTypes = [];
 
         function setStatus(message, type = '') {
             statusEl.textContent = message;
             statusEl.className = `status ${type}`;
         }
 
-        function validateGuid(value, label) {
-            const normalized = value.trim();
-            if (!normalized) return '';
-            if (!guidPattern.test(normalized)) {
-                throw new Error(`${label}: ожидается GUID в формате 00000000-0000-0000-0000-000000000000`);
-            }
-            return normalized;
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function renderPriceTypeOptions(selectedRetail = '', selectedWholesale = '') {
+            const options = [
+                '<option value="">Не выбрано</option>',
+                ...priceTypes.map((item) => (
+                    `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} (${escapeHtml(item.id)})</option>`
+                )),
+            ].join('');
+            retailInput.innerHTML = options;
+            wholesaleInput.innerHTML = options;
+            ensureOption(retailInput, selectedRetail);
+            ensureOption(wholesaleInput, selectedWholesale);
+            retailInput.value = selectedRetail || '';
+            wholesaleInput.value = selectedWholesale || '';
+        }
+
+        function ensureOption(select, value) {
+            if (!value || Array.from(select.options).some((option) => option.value === value)) return;
+            select.insertAdjacentHTML(
+                'beforeend',
+                `<option value="${escapeHtml(value)}">Текущее значение (${escapeHtml(value)})</option>`
+            );
         }
 
         function renderEffective(columns) {
             const entries = Object.entries(columns || {});
             if (!entries.length) {
-                effectiveList.innerHTML = '<span class="empty">Нет активных видов цен. Заполните GUID или настройте fallback в .env.</span>';
+                effectiveList.innerHTML = '<span class="empty">Нет активных видов цен. Выберите розничную и/или оптовую цену в настройках.</span>';
                 return;
             }
             effectiveList.innerHTML = entries.map(([guid, name]) => `
@@ -286,21 +321,36 @@
 
         async function loadSettings() {
             setStatus('Загрузка...');
-            const response = await fetch('/api/account/settings');
-            if (!response.ok) throw new Error('Не удалось загрузить настройки');
-            const data = await response.json();
-            retailInput.value = data.price_type_retail || '';
-            wholesaleInput.value = data.price_type_wholesale || '';
+            const [settingsResponse, priceTypesResponse] = await Promise.all([
+                fetch('/api/account/settings'),
+                fetch('/api/account/price-types'),
+            ]);
+            if (!settingsResponse.ok) throw new Error('Не удалось загрузить настройки');
+            const data = await settingsResponse.json();
+
+            if (priceTypesResponse.ok) {
+                const priceTypesData = await priceTypesResponse.json();
+                priceTypes = priceTypesData.items || [];
+            } else {
+                priceTypes = [];
+                setStatus('Не удалось загрузить виды цен из 1С', 'error');
+            }
+
+            renderPriceTypeOptions(data.price_type_retail || '', data.price_type_wholesale || '');
             renderEffective(data.effective_price_types);
-            setStatus('');
+            if (!priceTypes.length) {
+                setStatus('Виды цен не найдены. Проверьте публикацию OData.', 'error');
+            } else {
+                setStatus('');
+            }
         }
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
             try {
                 const payload = {
-                    price_type_retail: validateGuid(retailInput.value, 'Розничная цена'),
-                    price_type_wholesale: validateGuid(wholesaleInput.value, 'Оптовая цена'),
+                    price_type_retail: retailInput.value,
+                    price_type_wholesale: wholesaleInput.value,
                 };
 
                 saveBtn.disabled = true;

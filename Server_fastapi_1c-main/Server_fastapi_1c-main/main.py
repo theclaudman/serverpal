@@ -45,6 +45,7 @@ from services.onec_client import (
     fetch_groups, fetch_contragents, fetch_cost_by_orders,
     fetch_employees, fetch_orders, fetch_revenues, fetch_payments,
     fetch_debts, fetch_events, fetch_sales, fetch_order_numbers,
+    fetch_price_types,
     set_credentials,
 )
 from services.data_builder import build_price_list, build_groups_hierarchy, get_unique_groups
@@ -259,8 +260,8 @@ def require_session(request: Request):
 
 
 def _user_price_columns(session: dict) -> dict:
-    price_type_retail = (session.get("price_type_retail") or settings.price_type_retail).strip()
-    price_type_wholesale = (session.get("price_type_wholesale") or settings.price_type_wholesale).strip()
+    price_type_retail = (session.get("price_type_retail") or "").strip()
+    price_type_wholesale = (session.get("price_type_wholesale") or "").strip()
     columns = {}
     if price_type_retail and price_type_retail != "00000000-0000-0000-0000-000000000000":
         columns[price_type_retail] = "Розничная"
@@ -432,8 +433,6 @@ async def register_submit(
     onec_base_url: str = Form(...),
     username:      str = Form(...),
     password:      str = Form(default=""),
-    price_type_retail: str = Form(default=""),
-    price_type_wholesale: str = Form(default=""),
     registration_token: str = Form(default=""),
 ):
     if not _registration_allowed(registration_token):
@@ -443,8 +442,6 @@ async def register_submit(
     if not onec_base_url.startswith("http://") and not onec_base_url.startswith("https://"):
         onec_base_url = "http://" + onec_base_url
     username = username.strip()
-    price_type_retail = price_type_retail.strip()
-    price_type_wholesale = price_type_wholesale.strip()
 
     if not onec_base_url or not username:
         return HTMLResponse(
@@ -482,15 +479,15 @@ async def register_submit(
             status_code=502,
         )
 
-    create_user(username, password, onec_base_url, price_type_retail, price_type_wholesale)
+    create_user(username, password, onec_base_url)
 
     encrypted_pw = _fernet().encrypt(password.encode()).decode()
     session_data = {
         "onec_base_url": onec_base_url,
         "user": username,
         "password": encrypted_pw,
-        "price_type_retail": price_type_retail,
-        "price_type_wholesale": price_type_wholesale,
+        "price_type_retail": "",
+        "price_type_wholesale": "",
     }
     response = RedirectResponse(url="/", status_code=302)
     set_session_cookie(response, session_data)
@@ -516,6 +513,39 @@ async def api_account_settings(request: Request):
             "effective_price_types": _user_price_columns(session),
         }
     )
+
+
+@app.get("/api/account/price-types")
+async def api_account_price_types(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+
+    cache_key = session["onec_base_url"]
+    cached = get_cached("reference", "price_types", cache_key)
+    if cached is not None:
+        return JSONResponse({"items": cached})
+
+    try:
+        rows = await fetch_price_types()
+    except Exception as e:
+        logger.exception("Failed to load price types")
+        return JSONResponse(
+            {"error": "Не удалось загрузить виды цен из 1С", "detail": str(e)},
+            status_code=502,
+        )
+
+    items = [
+        {
+            "id": row.get("Ref_Key", ""),
+            "name": row.get("Description", "") or row.get("Ref_Key", ""),
+        }
+        for row in rows
+        if row.get("Ref_Key")
+    ]
+    items.sort(key=lambda item: item["name"].lower())
+    set_cached("reference", items, "price_types", cache_key)
+    return JSONResponse({"items": items})
 
 
 @app.post("/api/account/settings")
@@ -564,7 +594,7 @@ async def get_price_list(request: Request):
     if not price_columns_map:
         raise HTTPException(
             status_code=400,
-            detail="Не заданы GUID видов цен для клиента. Укажите price_type_retail/price_type_wholesale в настройках пользователя или fallback в .env.",
+            detail="Не выбраны виды цен для клиента. Укажите розничную и/или оптовую цену в настройках пользователя.",
         )
 
     price_columns = list(price_columns_map.values())

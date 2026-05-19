@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 class Credentials(BaseModel):
     """Параметры подключения к 1С."""
-    base_url: str = Field(..., description="URL OData 1С, например http://127.0.0.1/Eu/odata/standard.odata")
+    base_url: str = Field(..., description="URL OData 1С, например https://example.com/base/odata/standard.odata")
     login: str
     password: str
 
