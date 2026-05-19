@@ -361,14 +361,7 @@
             border-radius: 12px;
         }
 
-        .footer a {
-            color: var(--accent-green);
-            text-decoration: none;
-        }
-
-        .footer a:hover {
-            text-decoration: underline;
-        }
+        .footer strong { color: var(--accent-green); font-weight: 600; }
 
         @media (max-width: 768px) {
             body { padding: 10px; }
@@ -447,21 +440,24 @@
         </div>
     </div>
 
-    <div class="footer">
-        Прайс-лист сгенерирован автоматически при помощи <a href="https://t.me/unf_tg_1eska_bot" target="_blank">Telegram-бота 1Eska</a>
+    <div class="footer" id="price-status">
+        <strong>Загрузка прайс-листа...</strong>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const priceListData = /*@@PRICE_DATA@@*/[];
-            const groupsList = /*@@GROUPS_LIST@@*/[];
-            const priceColumns = /*@@PRICE_COLUMNS@@*/[];
-            const groupsHierarchy = /*@@GROUPS_HIERARCHY@@*/[];
+            let priceListData = /*@@PRICE_DATA@@*/[];
+            let groupsList = /*@@GROUPS_LIST@@*/[];
+            let priceColumns = /*@@PRICE_COLUMNS@@*/[];
+            let groupsHierarchy = /*@@GROUPS_HIERARCHY@@*/[];
+            let totalItems = 0;
+            let loading = false;
+            let pendingReload = false;
             
             const STORAGE_KEY = 'priceListSettings';
 
             // Build hierarchy tree
-            const groupTree = buildGroupTree(groupsHierarchy);
+            let groupTree = buildGroupTree(groupsHierarchy);
 
             function buildGroupTree(hierarchy) {
                 const tree = {};
@@ -593,6 +589,7 @@
             const tableHeader = document.getElementById('table-header');
             const tableBody = document.getElementById('table-body');
             const paginationControls = document.getElementById('pagination-controls');
+            const priceStatus = document.getElementById('price-status');
             const settingsModal = document.getElementById('settings-modal');
             const modalClose = document.getElementById('modal-close');
             const btnResetSettings = document.getElementById('btn-reset-settings');
@@ -600,6 +597,7 @@
 
             // Populate group filter with hierarchy
             function populateGroupFilter() {
+                const selectedGroup = state.groupFilter;
                 groupFilterEl.innerHTML = '<option value="">Все группы</option>';
 
                 function addOptions(nodes, prefix = '') {
@@ -625,6 +623,7 @@
                         groupFilterEl.appendChild(option);
                     });
                 }
+                groupFilterEl.value = selectedGroup;
             }
             populateGroupFilter();
 
@@ -759,7 +758,8 @@
                             state.sortColumn = col.key;
                             state.sortDirection = 'asc';
                         }
-                        render();
+                        state.currentPage = 1;
+                        loadData();
                     });
 
                     // Resize handle
@@ -919,19 +919,14 @@
                     return;
                 }
 
-                // Pagination for flat list
-                const startIdx = (state.currentPage - 1) * state.rowsPerPage;
-                const endIdx = startIdx + state.rowsPerPage;
-                const pageData = data.slice(startIdx, endIdx);
-
-                pageData.forEach(row => {
+                data.forEach(row => {
                     tableBody.appendChild(renderRow(row));
                 });
 
                 btnExpandAll.style.display = 'none';
                 btnCollapseAll.style.display = 'none';
 
-                renderPagination(data.length);
+                renderPagination(totalItems);
             }
 
             function renderPagination(totalItems) {
@@ -940,8 +935,8 @@
                     return;
                 }
 
-                const totalPages = Math.ceil(totalItems / state.rowsPerPage);
-                const startItem = (state.currentPage - 1) * state.rowsPerPage + 1;
+                const totalPages = Math.max(1, Math.ceil(totalItems / state.rowsPerPage));
+                const startItem = totalItems ? (state.currentPage - 1) * state.rowsPerPage + 1 : 0;
                 const endItem = Math.min(state.currentPage * state.rowsPerPage, totalItems);
 
                 paginationControls.innerHTML = `
@@ -953,23 +948,83 @@
                 document.getElementById('btn-prev')?.addEventListener('click', () => {
                     if (state.currentPage > 1) {
                         state.currentPage--;
-                        render();
+                        loadData();
                     }
                 });
 
                 document.getElementById('btn-next')?.addEventListener('click', () => {
                     if (state.currentPage < totalPages) {
                         state.currentPage++;
-                        render();
+                        loadData();
                     }
                 });
             }
 
             function render() {
-                let data = filterData(priceListData);
-                data = sortData(data);
                 renderHeader();
-                renderTable(data);
+                renderTable(priceListData);
+            }
+
+            function applyMetadata(payload) {
+                if (Array.isArray(payload.price_columns)) {
+                    priceColumns = payload.price_columns;
+                    const currentPriceMap = {};
+                    state.columns.price.forEach(col => { currentPriceMap[col.key] = col; });
+                    state.columns.price = priceColumns.map(col => ({
+                        key: col,
+                        label: col,
+                        align: 'right',
+                        width: currentPriceMap[col]?.width || 100,
+                        visible: currentPriceMap[col]?.visible ?? true,
+                        type: 'price'
+                    }));
+                }
+                if (Array.isArray(payload.groups_list)) groupsList = payload.groups_list;
+                if (Array.isArray(payload.groups_hierarchy)) {
+                    groupsHierarchy = payload.groups_hierarchy;
+                    groupTree = buildGroupTree(groupsHierarchy);
+                    populateGroupFilter();
+                }
+            }
+
+            async function loadData() {
+                if (loading) {
+                    pendingReload = true;
+                    return;
+                }
+                loading = true;
+                pendingReload = false;
+                tableBody.innerHTML = `<tr><td colspan="${Math.max(getVisibleColumns().length, 1)}" class="text-center">Загрузка...</td></tr>`;
+                paginationControls.innerHTML = '';
+
+                const params = new URLSearchParams({
+                    page: state.currentPage,
+                    page_size: state.rowsPerPage,
+                    search: state.filterTerm,
+                    group: state.groupFilter,
+                    stock: state.stockFilter,
+                    sort_column: state.sortColumn || '',
+                    sort_direction: state.sortDirection
+                });
+
+                try {
+                    const response = await fetch(`/api/price-list?${params.toString()}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    const payload = await response.json();
+                    priceListData = payload.items || [];
+                    totalItems = payload.total || 0;
+                    applyMetadata(payload);
+                    priceStatus.innerHTML = `Загружено <strong>${priceListData.length}</strong> из <strong>${totalItems}</strong> позиций`;
+                    render();
+                } catch (error) {
+                    tableBody.innerHTML = `<tr><td colspan="${Math.max(getVisibleColumns().length, 1)}" class="text-center">Ошибка загрузки прайса: ${error.message}</td></tr>`;
+                    priceStatus.innerHTML = `<strong>Ошибка загрузки прайс-листа</strong>`;
+                } finally {
+                    loading = false;
+                    if (pendingReload) loadData();
+                }
             }
 
             // Settings modal
@@ -1085,19 +1140,19 @@
             searchInput.addEventListener('input', (e) => {
                 state.filterTerm = e.target.value;
                 state.currentPage = 1;
-                render();
+                loadData();
             });
 
             groupFilterEl.addEventListener('change', (e) => {
                 state.groupFilter = e.target.value;
                 state.currentPage = 1;
-                render();
+                loadData();
             });
 
             stockFilterEl.addEventListener('change', (e) => {
                 state.stockFilter = e.target.value;
                 state.currentPage = 1;
-                render();
+                loadData();
             });
 
             btnTreeView.addEventListener('click', () => {
@@ -1151,6 +1206,7 @@
 
             // Initial render
             render();
+            loadData();
         });
     </script>
 </body>

@@ -1,1 +1,0 @@
-pip install uvicorn cryptography httpx slowapi pydantic-settings apscheduler openai bcrypt fastapi cachetools python-multipart requests pyyaml websockets "uvicorn[standard]"

@@ -4,6 +4,7 @@ import inspect
 import logging
 import time
 from contextvars import ContextVar
+from urllib.parse import urljoin
 
 # Контекстные переменные — устанавливаются из сессии для каждого запроса
 _ctx_base_url: ContextVar[str] = ContextVar("onec_base_url", default="")
@@ -14,9 +15,18 @@ logger = logging.getLogger("dashboard.odata")
 
 
 def set_credentials(onec_base_url: str, user: str, password: str) -> None:
-    _ctx_base_url.set(f"{onec_base_url}/odata/standard.odata")
+    _ctx_base_url.set(_normalize_odata_base_url(onec_base_url))
     _ctx_user.set(user)
     _ctx_password.set(password)
+
+
+def _normalize_odata_base_url(onec_base_url: str) -> str:
+    url = onec_base_url.strip().rstrip("/")
+    marker = "/odata/standard.odata"
+    marker_index = url.lower().find(marker)
+    if marker_index >= 0:
+        return url[: marker_index + len(marker)]
+    return f"{url}{marker}"
 
 
 def _base_url() -> str:
@@ -29,43 +39,72 @@ def _password() -> str:
     return _ctx_password.get()
 
 
-async def safe_get(url: str) -> dict:
-    """Выполняет асинхронный GET запрос к 1С OData."""
+async def safe_get(url: str, *, optional_statuses: set[int] | None = None) -> dict:
+    """Execute GET against 1C OData and return a merged value list."""
     operation = _caller_name()
     entity = _entity_name(url)
     started = time.perf_counter()
     response = None
+    next_url = url
+    pages = 0
+    rows: list = []
+    size_bytes = 0
+    status_codes: list[int] = []
     auth = httpx.BasicAuth(_user(), _password())
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(url, auth=auth)
-            response.raise_for_status()
-            payload = response.json()
+            while next_url:
+                response = await client.get(next_url, auth=auth)
+                status_codes.append(response.status_code)
+                size_bytes += len(response.content)
 
-        rows = payload.get("value", [])
-        row_count = len(rows) if isinstance(rows, list) else 0
-        size_bytes = len(response.content)
+                if optional_statuses and response.status_code in optional_statuses:
+                    duration = time.perf_counter() - started
+                    logger.info(
+                        "OData %s entity=%s optional_missing status=%s rows=0 pages=%s bytes=%s size=%s duration=%.3fs",
+                        operation,
+                        entity,
+                        response.status_code,
+                        pages,
+                        size_bytes,
+                        _format_size(size_bytes),
+                        duration,
+                    )
+                    return {"value": []}
+
+                response.raise_for_status()
+                payload = response.json()
+                page_rows = payload.get("value", [])
+                if isinstance(page_rows, list):
+                    rows.extend(page_rows)
+                pages += 1
+                next_url = _next_link(payload, response.url)
+
         duration = time.perf_counter() - started
         logger.info(
-            "OData %s entity=%s status=%s rows=%s bytes=%s duration=%.3fs",
+            "OData %s entity=%s status=%s rows=%s pages=%s bytes=%s size=%s duration=%.3fs",
             operation,
             entity,
-            response.status_code,
-            row_count,
+            ",".join(str(code) for code in status_codes),
+            len(rows),
+            pages,
             size_bytes,
+            _format_size(size_bytes),
             duration,
         )
-        return payload
+        return {"value": rows}
     except Exception:
         duration = time.perf_counter() - started
         status = response.status_code if response is not None else "n/a"
-        size_bytes = len(response.content) if response is not None else 0
         logger.exception(
-            "OData %s entity=%s failed status=%s bytes=%s duration=%.3fs",
+            "OData %s entity=%s failed status=%s rows=%s pages=%s bytes=%s size=%s duration=%.3fs",
             operation,
             entity,
             status,
+            len(rows),
+            pages,
             size_bytes,
+            _format_size(size_bytes),
             duration,
         )
         raise
@@ -86,6 +125,25 @@ def _entity_name(url: str) -> str:
     return tail.split("?", 1)[0]
 
 
+def _next_link(payload: dict, current_url) -> str:
+    next_link = (
+        payload.get("@odata.nextLink")
+        or payload.get("odata.nextLink")
+        or payload.get("__next")
+    )
+    if not next_link:
+        return ""
+    return urljoin(str(current_url), str(next_link))
+
+
+def _format_size(size_bytes: int) -> str:
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / 1024 / 1024:.1f}MB"
+    if size_bytes >= 1024:
+        return f"{size_bytes / 1024:.1f}KB"
+    return f"{size_bytes}B"
+
+
 def get_client():
     return None
 
@@ -100,6 +158,9 @@ async def fetch_nomenclature(client=None) -> list:
 
 
 async def fetch_prices(client=None, price_type_keys: list = []) -> list:
+    if not price_type_keys:
+        logger.info("OData fetch_prices skipped: no price type keys")
+        return []
     guids = " or ".join(
         [f"ВидЦен_Key eq guid'{key}'" for key in price_type_keys]
     )
@@ -122,15 +183,12 @@ async def fetch_stocks(client=None) -> list:
 
 
 async def fetch_reserves(client=None) -> list:
-    try:
-        url = (
-            f"{_base_url()}/AccumulationRegister_РезервыТоваровОрганизаций/Balance"
-            f"?$format=json"
-            f"&$select=Номенклатура_Key,КоличествоBalance"
-        )
-        return (await safe_get(url)).get("value", [])
-    except Exception:
-        return []
+    url = (
+        f"{_base_url()}/AccumulationRegister_РезервыТоваровОрганизаций/Balance"
+        f"?$format=json"
+        f"&$select=Номенклатура_Key,КоличествоBalance"
+    )
+    return (await safe_get(url, optional_statuses={404})).get("value", [])
 
 
 async def fetch_groups(client=None) -> list:

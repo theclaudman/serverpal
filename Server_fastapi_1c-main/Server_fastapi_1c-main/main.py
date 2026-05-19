@@ -560,7 +560,6 @@ async def get_price_list(request: Request):
     if redirect:
         return redirect
 
-    cache_key = session["onec_base_url"]
     price_columns_map = _user_price_columns(session)
     if not price_columns_map:
         raise HTTPException(
@@ -568,6 +567,24 @@ async def get_price_list(request: Request):
             detail="Не заданы GUID видов цен для клиента. Укажите price_type_retail/price_type_wholesale в настройках пользователя или fallback в .env.",
         )
 
+    price_columns = list(price_columns_map.values())
+    html = _render_template_with_shell(TEMPLATE_PATH, "price")
+    html = html.replace("/*@@PRICE_DATA@@*/[]", "[]")
+    html = html.replace("/*@@GROUPS_LIST@@*/[]", "[]")
+    html = html.replace("/*@@PRICE_COLUMNS@@*/[]", json.dumps(price_columns, ensure_ascii=False))
+    html = html.replace("/*@@GROUPS_HIERARCHY@@*/[]", "[]")
+    logger.info(
+        "price-list shell_done columns=%s html_bytes=%s total_duration=%.3fs",
+        len(price_columns),
+        len(html.encode("utf-8")),
+        time.perf_counter() - page_started,
+    )
+
+    return HTMLResponse(content=html)
+
+
+async def _get_price_list_payload(session: dict, price_columns_map: dict):
+    cache_key = session["onec_base_url"]
     price_cache_key = "|".join(price_columns_map.keys())
     cached = get_cached("price", cache_key, "price_list", price_cache_key)
     if cached:
@@ -618,33 +635,98 @@ async def get_price_list(request: Request):
 
         set_cached("price", (price_list, groups_hierarchy, groups_list, price_columns), cache_key, "price_list", price_cache_key)
 
+    return price_list, groups_hierarchy, groups_list, price_columns
+
+
+def _filter_price_rows(rows: list[dict], search: str, group: str, stock: str) -> list[dict]:
+    search = (search or "").strip().lower()
+    group = (group or "").strip()
+    stock = (stock or "").strip()
+    search_fields = ["Наименование", "Артикул", "Код", "Группа"]
+
+    def matches(row: dict) -> bool:
+        if search and not any(search in str(row.get(field, "")).lower() for field in search_fields):
+            return False
+        if group and row.get("Группа") != group:
+            return False
+        if stock:
+            stock_value = row.get("Остаток") or 0
+            if stock == "in-stock" and stock_value <= 0:
+                return False
+            if stock == "out-of-stock" and stock_value > 0:
+                return False
+        return True
+
+    return [row for row in rows if matches(row)]
+
+
+def _sort_price_rows(rows: list[dict], sort_column: str, sort_direction: str) -> list[dict]:
+    if not sort_column:
+        return rows
+    reverse = sort_direction == "desc"
+
+    def key(row: dict):
+        value = row.get(sort_column)
+        if value is None:
+            return (1, "")
+        if isinstance(value, (int, float)):
+            return (0, value)
+        return (1, str(value).lower())
+
+    return sorted(rows, key=key, reverse=reverse)
+
+
+@app.get("/api/price-list")
+async def api_price_list(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=100, ge=1, le=1000),
+    search: str = Query(default=""),
+    group: str = Query(default=""),
+    stock: str = Query(default=""),
+    sort_column: str = Query(default=""),
+    sort_direction: str = Query(default="asc"),
+):
+    api_started = time.perf_counter()
+    session, redirect = require_session(request)
+    if redirect:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    price_columns_map = _user_price_columns(session)
+    if not price_columns_map:
+        raise HTTPException(status_code=400, detail="Price type GUIDs are not configured")
+
+    price_list, groups_hierarchy, groups_list, price_columns = await _get_price_list_payload(session, price_columns_map)
+    filtered = _filter_price_rows(price_list, search, group, stock)
+    filtered = _sort_price_rows(filtered, sort_column, sort_direction)
+
+    total = len(filtered)
+    start = (page - 1) * page_size
+    end = start + page_size
+    items = filtered[start:end]
+    response = {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "price_columns": price_columns,
+        "groups_list": groups_list,
+        "groups_hierarchy": groups_hierarchy,
+    }
+
     json_started = time.perf_counter()
-    price_data_json = json.dumps(price_list, ensure_ascii=False)
-    groups_list_json = json.dumps(groups_list, ensure_ascii=False)
-    price_columns_json = json.dumps(price_columns, ensure_ascii=False)
-    groups_hierarchy_json = json.dumps(groups_hierarchy, ensure_ascii=False)
+    response_bytes = len(json.dumps(response, ensure_ascii=False).encode("utf-8"))
     logger.info(
-        "price-list json_done price_bytes=%s groups_bytes=%s columns_bytes=%s hierarchy_bytes=%s duration=%.3fs",
-        len(price_data_json.encode("utf-8")),
-        len(groups_list_json.encode("utf-8")),
-        len(price_columns_json.encode("utf-8")),
-        len(groups_hierarchy_json.encode("utf-8")),
+        "price-list api_done rows=%s total=%s page=%s page_size=%s response_bytes=%s json_duration=%.3fs total_duration=%.3fs",
+        len(items),
+        total,
+        page,
+        page_size,
+        response_bytes,
         time.perf_counter() - json_started,
+        time.perf_counter() - api_started,
     )
-
-    html = _render_template_with_shell(TEMPLATE_PATH, "price")
-    html = html.replace("/*@@PRICE_DATA@@*/[]",       price_data_json)
-    html = html.replace("/*@@GROUPS_LIST@@*/[]",      groups_list_json)
-    html = html.replace("/*@@PRICE_COLUMNS@@*/[]",    price_columns_json)
-    html = html.replace("/*@@GROUPS_HIERARCHY@@*/[]", groups_hierarchy_json)
-    logger.info(
-        "price-list page_done rows=%s html_bytes=%s total_duration=%.3fs",
-        len(price_list),
-        len(html.encode("utf-8")),
-        time.perf_counter() - page_started,
-    )
-
-    return HTMLResponse(content=html)
+    return JSONResponse(response)
 
 
 @app.get("/dashboard/managers", response_class=HTMLResponse)
