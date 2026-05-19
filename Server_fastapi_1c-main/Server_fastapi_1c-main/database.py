@@ -81,7 +81,8 @@ def get_user(username: str) -> dict | None:
         row = conn.execute(
             """
             SELECT username, password_hash, onec_password, onec_base_url,
-                   price_type_retail, price_type_wholesale
+                   price_type_retail, price_type_wholesale,
+                   digest_provider, digest_model
             FROM users
             WHERE username = ?
             """,
@@ -143,6 +144,18 @@ def update_user_price_types(username: str, price_type_retail: str, price_type_wh
             WHERE username = ?
             """,
             (price_type_retail, price_type_wholesale, username),
+        )
+
+
+def update_user_digest_settings(username: str, digest_provider: str, digest_model: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE users
+            SET digest_provider = ?, digest_model = ?
+            WHERE username = ?
+            """,
+            (digest_provider, digest_model, username),
         )
 
 

@@ -98,16 +98,26 @@ fernet = Fernet(Fernet.generate_key())
 fernet_factory = lambda: fernet
 
 applied = run_migrations(db_path, fernet_factory)
-assert applied == ["001_initial_dashboard_schema", "002_user_price_types"]
+assert applied == [
+    "001_initial_dashboard_schema",
+    "002_user_price_types",
+    "003_digest_history",
+    "004_digest_model_settings",
+]
 
 with sqlite3.connect(db_path) as conn:
     conn.row_factory = sqlite3.Row
     prompt_ids = {row["id"] for row in conn.execute("SELECT id FROM prompts").fetchall()}
     assert {"chat", "digest", "ask"} <= prompt_ids
     versions = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
-    assert {"001_initial_dashboard_schema", "002_user_price_types"} <= versions
+    assert {
+        "001_initial_dashboard_schema",
+        "002_user_price_types",
+        "003_digest_history",
+        "004_digest_model_settings",
+    } <= versions
     user_columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
-    assert {"price_type_retail", "price_type_wholesale"} <= user_columns
+    assert {"price_type_retail", "price_type_wholesale", "digest_provider", "digest_model"} <= user_columns
 
 assert run_migrations(db_path, fernet_factory) == []
 
@@ -117,7 +127,12 @@ with sqlite3.connect(old_db_path) as conn:
     conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("legacy", "secret"))
 
 applied = run_migrations(old_db_path, fernet_factory)
-assert applied == ["001_initial_dashboard_schema", "002_user_price_types"]
+assert applied == [
+    "001_initial_dashboard_schema",
+    "002_user_price_types",
+    "003_digest_history",
+    "004_digest_model_settings",
+]
 
 with sqlite3.connect(old_db_path) as conn:
     conn.row_factory = sqlite3.Row

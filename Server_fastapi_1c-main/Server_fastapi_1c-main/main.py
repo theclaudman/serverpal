@@ -36,6 +36,7 @@ from database import (
     get_all_prompts, get_prompt, update_prompt,
     get_templates, create_template, delete_template,
     update_user_price_types,
+    update_user_digest_settings,
     clear_digest_history, add_digest_message, get_digest_history,
     _fernet,
 )
@@ -52,7 +53,7 @@ from services.data_builder import build_price_list, build_groups_hierarchy, get_
 from services.dashboard_builder import build_managers_dashboard
 from services.sales_builder import build_sales_report
 from services.ai_client import chat as ai_chat
-from services.digest_client import get_providers, generate_digest, ask_question
+from services.digest_client import get_providers, get_models, generate_digest, ask_question
 
 
 # ── Pydantic-модели запросов ──────────────────────────────────────────────────
@@ -67,10 +68,12 @@ class ChatMessage(BaseModel):
 class DigestBody(BaseModel):
     date: str = None
     provider: str = "lmstudio"
+    model: str = ""
 
 class AskBody(BaseModel):
     question: str
     provider: str = "lmstudio"
+    model: str = ""
 
 class PromptUpdate(BaseModel):
     content: str
@@ -78,6 +81,8 @@ class PromptUpdate(BaseModel):
 class AccountSettingsUpdate(BaseModel):
     price_type_retail: str = ""
     price_type_wholesale: str = ""
+    digest_provider: str = "lmstudio"
+    digest_model: str = ""
 
 
 # ── Логирование ───────────────────────────────────────────────────────────────
@@ -409,6 +414,8 @@ async def login_submit(
         "password": encrypted_pw,
         "price_type_retail": user.get("price_type_retail", ""),
         "price_type_wholesale": user.get("price_type_wholesale", ""),
+        "digest_provider": user.get("digest_provider", "lmstudio") or "lmstudio",
+        "digest_model": user.get("digest_model", ""),
     }
     response = RedirectResponse(url="/", status_code=302)
     set_session_cookie(response, session_data)
@@ -488,6 +495,8 @@ async def register_submit(
         "password": encrypted_pw,
         "price_type_retail": "",
         "price_type_wholesale": "",
+        "digest_provider": "lmstudio",
+        "digest_model": "",
     }
     response = RedirectResponse(url="/", status_code=302)
     set_session_cookie(response, session_data)
@@ -510,6 +519,8 @@ async def api_account_settings(request: Request):
         {
             "price_type_retail": session.get("price_type_retail", ""),
             "price_type_wholesale": session.get("price_type_wholesale", ""),
+            "digest_provider": session.get("digest_provider", "lmstudio") or "lmstudio",
+            "digest_model": session.get("digest_model", ""),
             "effective_price_types": _user_price_columns(session),
         }
     )
@@ -556,10 +567,18 @@ async def api_update_account_settings(request: Request, body: AccountSettingsUpd
 
     price_type_retail = body.price_type_retail.strip()
     price_type_wholesale = body.price_type_wholesale.strip()
+    digest_provider = body.digest_provider.strip().lower() or "lmstudio"
+    digest_model = body.digest_model.strip()
+    if digest_provider not in {"lmstudio", "openai"}:
+        return JSONResponse({"error": "Неизвестный провайдер дайджеста"}, status_code=400)
+
     update_user_price_types(session["user"], price_type_retail, price_type_wholesale)
+    update_user_digest_settings(session["user"], digest_provider, digest_model)
 
     session["price_type_retail"] = price_type_retail
     session["price_type_wholesale"] = price_type_wholesale
+    session["digest_provider"] = digest_provider
+    session["digest_model"] = digest_model
     response = JSONResponse({"status": "ok"})
     set_session_cookie(response, session)
     return response
@@ -1014,6 +1033,15 @@ async def api_digest_providers(request: Request):
     return JSONResponse(result)
 
 
+@app.get("/api/digest/models")
+async def api_digest_models(request: Request):
+    session, _ = require_session(request)
+    if not session:
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    result = await get_models()
+    return JSONResponse(result)
+
+
 @app.get("/api/digest/history")
 async def api_digest_history(request: Request):
     session, _ = require_session(request)
@@ -1048,12 +1076,16 @@ async def api_digest(request: Request, body: DigestBody):
     digest_prompt = get_prompt("digest")
     system_prompt = digest_prompt["content"] if digest_prompt and digest_prompt["content"].strip() else ""
 
+    digest_provider = session.get("digest_provider", "lmstudio") or "lmstudio"
+    digest_model = session.get("digest_model", "")
+
     result = await generate_digest(
         login=session["user"],
         password=decrypt_onec_password(session["password"]),
         onec_base_url=session["onec_base_url"],
         date=body.date,
-        provider=body.provider,
+        provider=digest_provider,
+        model=digest_model,
         system_prompt=system_prompt,
     )
     if result.get("status") == "ok" and result.get("digest"):
@@ -1063,10 +1095,11 @@ async def api_digest(request: Request, body: DigestBody):
             "digest",
             result["digest"],
             digest_date=result.get("date") or body.date or "",
-            provider=result.get("provider") or body.provider,
+            provider=result.get("provider") or digest_provider,
             meta={
                 "generated_at": result.get("generated_at", ""),
                 "anonymized": result.get("anonymized", False),
+                "model": result.get("model") or digest_model,
             },
         )
     return JSONResponse(result)
@@ -1082,12 +1115,16 @@ async def api_digest_ask(request: Request, body: AskBody):
     ask_prompt = get_prompt("ask")
     system_prompt = ask_prompt["content"] if ask_prompt and ask_prompt["content"].strip() else ""
 
+    digest_provider = session.get("digest_provider", "lmstudio") or "lmstudio"
+    digest_model = session.get("digest_model", "")
+
     result = await ask_question(
         login=session["user"],
         password=decrypt_onec_password(session["password"]),
         onec_base_url=session["onec_base_url"],
         question=body.question,
-        provider=body.provider,
+        provider=digest_provider,
+        model=digest_model,
         system_prompt=system_prompt,
     )
     if result.get("status") == "ok" and result.get("answer"):
@@ -1099,15 +1136,19 @@ async def api_digest_ask(request: Request, body: AskBody):
             "user",
             body.question,
             digest_date=digest_date,
-            provider=body.provider,
+            provider=digest_provider,
+            meta={"model": result.get("model") or digest_model},
         )
         add_digest_message(
             session["user"],
             "assistant",
             result["answer"],
             digest_date=digest_date,
-            provider=body.provider,
-            meta={"context_age_minutes": result.get("context_age_minutes")},
+            provider=digest_provider,
+            meta={
+                "context_age_minutes": result.get("context_age_minutes"),
+                "model": result.get("model") or digest_model,
+            },
         )
     return JSONResponse(result)
 

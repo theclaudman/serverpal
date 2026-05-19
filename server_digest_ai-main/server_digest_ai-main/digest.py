@@ -164,6 +164,7 @@ def run_digest_api(
     password: str,
     date: datetime = None,
     provider: str = "lmstudio",
+    model: str = "",
     system_prompt: str = "",
 ) -> dict:
     """
@@ -224,7 +225,7 @@ def run_digest_api(
 
     from lm_client import send
     try:
-        digest_masked = send(aggregated_text, final_prompt, provider=provider)
+        digest_masked = send(aggregated_text, final_prompt, provider=provider, model=model)
     except Exception as e:
         return {
             "status": "error",
@@ -251,6 +252,7 @@ def run_digest_api(
         "date": date_str,
         "generated_at": generated_at,
         "provider": provider,
+        "model": model,
         "anonymized": anonymize,
         "aggregated_text": aggregated_text,   # для кэша (не отдаётся клиенту)
         "real_names": real_names,             # для демаскировки вопросов

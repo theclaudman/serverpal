@@ -242,6 +242,34 @@
                     </div>
                 </div>
 
+                <div class="effective">
+                    <p class="section-title">Модель дайджеста</p>
+                    <p class="section-note">Выберите провайдера и модель, которые будут использоваться для генерации дайджеста и вопросов по нему.</p>
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label" for="digest-provider">Провайдер</label>
+                            <div class="input-wrapper">
+                                <i class="bi bi-cpu input-icon"></i>
+                                <select id="digest-provider" class="form-select" name="digest_provider">
+                                    <option value="lmstudio">LM Studio</option>
+                                    <option value="openai">OpenAI-compatible</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="digest-model">Модель</label>
+                            <div class="input-wrapper">
+                                <i class="bi bi-stars input-icon"></i>
+                                <select id="digest-model" class="form-select" name="digest_model">
+                                    <option value="">Модель по умолчанию</option>
+                                </select>
+                            </div>
+                            <div class="field-hint">Если список пустой, будет использована модель по умолчанию Digest API.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="actions">
                     <button id="save-btn" class="btn" type="submit">
                         <i class="bi bi-check2"></i> Сохранить
@@ -263,10 +291,13 @@
         const form = document.getElementById('settings-form');
         const retailInput = document.getElementById('price-type-retail');
         const wholesaleInput = document.getElementById('price-type-wholesale');
+        const digestProviderInput = document.getElementById('digest-provider');
+        const digestModelInput = document.getElementById('digest-model');
         const statusEl = document.getElementById('status');
         const saveBtn = document.getElementById('save-btn');
         const effectiveList = document.getElementById('effective-list');
         let priceTypes = [];
+        let digestModels = {};
 
         function setStatus(message, type = '') {
             statusEl.textContent = message;
@@ -305,6 +336,17 @@
             );
         }
 
+        function renderDigestModelOptions(provider, selectedModel = '') {
+            const models = digestModels[provider] || [];
+            const options = [
+                '<option value="">Модель по умолчанию</option>',
+                ...models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`),
+            ].join('');
+            digestModelInput.innerHTML = options;
+            ensureOption(digestModelInput, selectedModel);
+            digestModelInput.value = selectedModel || '';
+        }
+
         function renderEffective(columns) {
             const entries = Object.entries(columns || {});
             if (!entries.length) {
@@ -321,9 +363,10 @@
 
         async function loadSettings() {
             setStatus('Загрузка...');
-            const [settingsResponse, priceTypesResponse] = await Promise.all([
+            const [settingsResponse, priceTypesResponse, modelsResponse] = await Promise.all([
                 fetch('/api/account/settings'),
                 fetch('/api/account/price-types'),
+                fetch('/api/digest/models'),
             ]);
             if (!settingsResponse.ok) throw new Error('Не удалось загрузить настройки');
             const data = await settingsResponse.json();
@@ -336,7 +379,16 @@
                 setStatus('Не удалось загрузить виды цен из 1С', 'error');
             }
 
+            if (modelsResponse.ok) {
+                const modelsData = await modelsResponse.json();
+                digestModels = modelsData.models || {};
+            } else {
+                digestModels = {};
+            }
+
             renderPriceTypeOptions(data.price_type_retail || '', data.price_type_wholesale || '');
+            digestProviderInput.value = data.digest_provider || 'lmstudio';
+            renderDigestModelOptions(digestProviderInput.value, data.digest_model || '');
             renderEffective(data.effective_price_types);
             if (!priceTypes.length) {
                 setStatus('Виды цен не найдены. Проверьте публикацию OData.', 'error');
@@ -351,6 +403,8 @@
                 const payload = {
                     price_type_retail: retailInput.value,
                     price_type_wholesale: wholesaleInput.value,
+                    digest_provider: digestProviderInput.value,
+                    digest_model: digestModelInput.value,
                 };
 
                 saveBtn.disabled = true;
@@ -369,6 +423,10 @@
             } finally {
                 saveBtn.disabled = false;
             }
+        });
+
+        digestProviderInput.addEventListener('change', () => {
+            renderDigestModelOptions(digestProviderInput.value, '');
         });
 
         loadSettings().catch((error) => setStatus(error.message || 'Ошибка загрузки', 'error'));

@@ -80,12 +80,17 @@ async def get_providers() -> dict:
     return await _get("/api/providers")
 
 
+async def get_models() -> dict:
+    return await _get("/api/models")
+
+
 async def generate_digest(
     login: str,
     password: str,
     onec_base_url: str,
     date: str = None,
     provider: str = "lmstudio",
+    model: str = "",
     system_prompt: str = "",
 ) -> dict:
     """
@@ -107,6 +112,7 @@ async def generate_digest(
             "password": password,
         },
         "provider": provider,
+        "model": model,
         "system_prompt": system_prompt,
     }
 
@@ -122,6 +128,7 @@ async def ask_question(
     onec_base_url: str,
     question: str,
     provider: str = "lmstudio",
+    model: str = "",
     system_prompt: str = "",
 ) -> dict:
     """
@@ -141,6 +148,7 @@ async def ask_question(
         },
         "question": question,
         "provider": provider,
+        "model": model,
         "system_prompt": system_prompt,
     }
 

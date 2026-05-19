@@ -351,11 +351,6 @@
 
     <!-- Controls -->
     <div class="controls">
-        <label for="sel-provider">Модель</label>
-        <select id="sel-provider">
-            <option value="lmstudio">Загрузка...</option>
-        </select>
-
         <label for="inp-date">Дата</label>
         <input type="date" id="inp-date">
 
@@ -402,7 +397,6 @@ let digestReady = false;
 let busy = false;
 
 // ── DOM-элементы ───────────────────────────────────────
-const selProvider  = document.getElementById('sel-provider');
 const inpDate      = document.getElementById('inp-date');
 const btnGenerate  = document.getElementById('btn-generate');
 const chatArea     = document.getElementById('chat-area');
@@ -420,30 +414,8 @@ const btnClearHistory = document.getElementById('btn-clear-history');
     inpDate.value = d.toISOString().split('T')[0];
 
     // Загрузить провайдеры
-    loadProviders();
     loadHistory();
 })();
-
-async function loadProviders() {
-    try {
-        const r = await fetch('/api/digest/providers');
-        const data = await r.json();
-        if (data.providers && data.providers.length) {
-            selProvider.innerHTML = '';
-            data.providers.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name + (p.available ? '' : ' (недоступен)');
-                opt.disabled = !p.available;
-                selProvider.appendChild(opt);
-            });
-        } else {
-            selProvider.innerHTML = '<option value="lmstudio">LM Studio (по умолчанию)</option>';
-        }
-    } catch {
-        selProvider.innerHTML = '<option value="lmstudio">LM Studio (по умолчанию)</option>';
-    }
-}
 
 // ── Блокировка UI ──────────────────────────────────────
 async function loadHistory() {
@@ -620,8 +592,6 @@ async function doGenerate() {
     if (busy) return;
 
     const dateVal = inpDate.value;
-    const provider = selProvider.value;
-
     if (!dateVal) {
         addMsg('Ошибка', 'error', 'Выберите дату', 'error-body');
         return;
@@ -638,7 +608,7 @@ async function doGenerate() {
         const r = await fetch('/api/digest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: dateVal, provider }),
+            body: JSON.stringify({ date: dateVal }),
         });
 
         const data = await r.json();
@@ -690,7 +660,6 @@ async function doAsk() {
     const question = inpQuestion.value.trim();
     if (!question) return;
 
-    const provider = selProvider.value;
     inpQuestion.value = '';
 
     setLoading(true);
@@ -703,7 +672,7 @@ async function doAsk() {
         const r = await fetch('/api/digest/ask', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question, provider }),
+            body: JSON.stringify({ question }),
         });
 
         const data = await r.json();

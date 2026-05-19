@@ -32,6 +32,10 @@ class DigestRequest(BaseModel):
         "lmstudio",
         description="LLM-провайдер: lmstudio | openai"
     )
+    model: str = Field(
+        "",
+        description="Имя модели. Если пусто, Digest API использует модель по умолчанию провайдера."
+    )
     system_prompt: str = Field(
         "",
         description="Системный промпт из БД дашборда. Если пусто — берётся из файла."
@@ -45,6 +49,10 @@ class AskRequest(BaseModel):
     provider: str = Field(
         "lmstudio",
         description="LLM-провайдер: lmstudio | openai"
+    )
+    model: str = Field(
+        "",
+        description="Имя модели. Если пусто, Digest API использует модель по умолчанию провайдера."
     )
     system_prompt: str = Field(
         "",
@@ -63,6 +71,7 @@ class DigestResponse(BaseModel):
     date: str
     generated_at: str
     provider: str
+    model: str = ""
     anonymized: bool
 
 
@@ -74,6 +83,7 @@ class AskResponse(BaseModel):
     context_date: str
     context_age_minutes: int
     provider: str
+    model: str = ""
 
 
 class ErrorResponse(BaseModel):
@@ -89,6 +99,11 @@ class ProviderInfo(BaseModel):
     name: str
     available: bool
     anonymize: bool
+
+
+class ModelsResponse(BaseModel):
+    """GET /api/models."""
+    models: dict[str, list[str]]
 
 
 class ProvidersResponse(BaseModel):

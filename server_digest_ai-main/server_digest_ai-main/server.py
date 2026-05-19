@@ -52,7 +52,7 @@ def verify_service_key(x_service_api_key: str = Header(default="")) -> None:
 from api_models import (
     DigestRequest, AskRequest,
     DigestResponse, AskResponse, ErrorResponse,
-    ProviderInfo, ProvidersResponse, HealthResponse,
+    ProviderInfo, ProvidersResponse, ModelsResponse, HealthResponse,
 )
 import context_builder
 import logging
@@ -189,6 +189,20 @@ async def get_providers():
     return ProvidersResponse(providers=providers)
 
 
+@app.get("/api/models", response_model=ModelsResponse, dependencies=[Depends(verify_service_key)])
+async def get_models():
+    from lm_client import OPENAI_MODEL, list_lmstudio_models
+
+    models: dict[str, list[str]] = {"lmstudio": [], "openai": []}
+    try:
+        models["lmstudio"] = list_lmstudio_models()
+    except Exception:
+        pass
+    if OPENAI_MODEL:
+        models["openai"] = [OPENAI_MODEL]
+    return ModelsResponse(models=models)
+
+
 # ---------------------------------------------------------------------------
 # POST /api/digest
 # ---------------------------------------------------------------------------
@@ -217,6 +231,7 @@ async def generate_digest(req: DigestRequest):
         password=req.credentials.password,
         date=target_date,
         provider=req.provider,
+        model=req.model,
         system_prompt=req.system_prompt,
     )
 
@@ -249,6 +264,7 @@ async def generate_digest(req: DigestRequest):
         date=result["date"],
         generated_at=result["generated_at"],
         provider=result["provider"],
+        model=result.get("model", ""),
         anonymized=result["anonymized"],
     )
 
@@ -307,6 +323,7 @@ async def ask_question(req: AskRequest):
             question=req.question,
             system_prompt=system_prompt,
             provider=req.provider,
+            model=req.model,
         )
     except Exception as e:
         return JSONResponse(
@@ -330,6 +347,7 @@ async def ask_question(req: AskRequest):
         context_date=date_str,
         context_age_minutes=age,
         provider=req.provider,
+        model=req.model,
     )
 
 

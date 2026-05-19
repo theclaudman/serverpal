@@ -116,10 +116,11 @@ def _post_chat_completion(provider: str, base_url: str, model: str, payload: dic
         ) from e
 
 
-def _send_lmstudio(text: str, system_prompt: str) -> str:
+def _send_lmstudio(text: str, system_prompt: str, model: str = "") -> str:
     """Send text to local LM Studio through its OpenAI-compatible API."""
+    selected_model = (model or LMSTUDIO_MODEL).strip()
     payload = {
-        "model": LMSTUDIO_MODEL,
+        "model": selected_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": text},
@@ -131,7 +132,7 @@ def _send_lmstudio(text: str, system_prompt: str) -> str:
     return _post_chat_completion(
         provider="lmstudio",
         base_url=LMSTUDIO_BASE_URL,
-        model=LMSTUDIO_MODEL,
+        model=selected_model,
         payload=payload,
         headers={
             "Content-Type": "application/json",
@@ -139,12 +140,13 @@ def _send_lmstudio(text: str, system_prompt: str) -> str:
         },
     )
 
-def _send_openai(text: str, system_prompt: str) -> str:
+def _send_openai(text: str, system_prompt: str, model: str = "") -> str:
     """Send text to the external OpenAI-compatible Digest provider."""
     api_key = _get_openai_key()
+    selected_model = (model or OPENAI_MODEL).strip()
 
     payload = {
-        "model": OPENAI_MODEL,
+        "model": selected_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": text},
@@ -156,7 +158,7 @@ def _send_openai(text: str, system_prompt: str) -> str:
     return _post_chat_completion(
         provider="openai",
         base_url=OPENAI_BASE_URL,
-        model=OPENAI_MODEL,
+        model=selected_model,
         payload=payload,
         headers={
             "Content-Type": "application/json",
@@ -206,7 +208,8 @@ def _get_openai_key() -> str:
 
 def send_with_question(aggregated_text: str, question: str,
                        system_prompt: str,
-                       provider: str = "lmstudio") -> str:
+                       provider: str = "lmstudio",
+                       model: str = "") -> str:
     """
     Отправляет в LLM контекст данных + вопрос пользователя.
 
@@ -227,11 +230,12 @@ def send_with_question(aggregated_text: str, question: str,
         f"{aggregated_text}\n\n"
         f"ВОПРОС:\n{question}"
     )
-    return send(user_message, system_prompt, provider=provider)
+    return send(user_message, system_prompt, provider=provider, model=model)
 
 
 def send(text: str, system_prompt: str,
-         provider: str = "lmstudio") -> str:
+         provider: str = "lmstudio",
+         model: str = "") -> str:
     """
     Отправляет текст в LLM и возвращает ответ.
 
@@ -250,10 +254,10 @@ def send(text: str, system_prompt: str,
     provider = provider.lower().strip()
 
     if provider == "lmstudio":
-        return _send_lmstudio(text, system_prompt)
+        return _send_lmstudio(text, system_prompt, model=model)
 
     elif provider == "openai":
-        return _send_openai(text, system_prompt)
+        return _send_openai(text, system_prompt, model=model)
 
     else:
         raise ValueError(
@@ -281,6 +285,16 @@ def check_lmstudio() -> bool:
             return len(models) > 0
     except Exception:
         return False
+
+
+def list_lmstudio_models() -> list[str]:
+    req = urllib.request.Request(
+        f"{LMSTUDIO_BASE_URL}/models",
+        headers={"Authorization": "Bearer lm-studio"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+    return [m["id"] for m in result.get("data", []) if m.get("id")]
 
 
 # ---------------------------------------------------------------------------
